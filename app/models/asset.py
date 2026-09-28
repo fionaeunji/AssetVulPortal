@@ -71,5 +71,6 @@ class AssetProduct(Base):
     cpe_normalized: Mapped[str | None] = mapped_column(String(512), index=True)
     cpe_source: Mapped[str | None] = mapped_column(String(16))  # excel | mapping | None
     cpe_error: Mapped[str | None] = mapped_column(String(255))   # 잘못된 CPE 사유
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # 대장에서 빠지면 False (삭제하지 않음)
 
     asset: Mapped[Asset] = relationship(back_populates="products")

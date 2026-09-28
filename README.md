@@ -4,7 +4,7 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 2 완료** (NVD / EPSS / KEV Collector + Bundle Import). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 3 완료** (샘플 자산대장 + 안전한 Excel Import). 전체 README는 Phase 10에서 완성합니다.
 
 ## 실행 방법 (Windows PowerShell)
 
@@ -37,6 +37,21 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 # 8) 테스트
 python -m pytest
 ```
+
+## 자산관리대장 Import (Phase 3)
+
+```powershell
+python -m scripts.import_assets sample_data\sample_assets.xlsx
+python -m scripts.collect          # 업로드된 자산의 CPE 제품 기준으로 실제 수집
+```
+
+- 샘플: `sample_data/sample_assets.xlsx` — 가상 자산 22개/제품 23개 (IP는 RFC 5737 문서용 대역, 담당자·부서는 가상 명칭). `비고` 열에 매칭 기대값 기재. 재생성: `python -m scripts.generate_sample_assets`
+- 필수 컬럼: `Asset ID, 자산명, 자산구분(경계면/내부), IP, Vendor, Product, Version, CPE, 중요도(상/중/하), 담당자, 부서` (그 외 열은 무시)
+- 같은 Asset ID를 여러 행에 쓰면 한 자산의 여러 제품(OS+앱 등)으로 등록
+- **오류 행이 하나라도 있으면 파일 전체를 반영하지 않고** 행/열별 오류를 보여줍니다. 잘못된 CPE는 오류가 아닌 경고(해당 제품은 CPE 매칭 제외, 후보 매칭 대상)
+- 재업로드 시: 파일에서 빠진 자산/제품은 삭제하지 않고 비활성화, 버전이 바뀐 제품의 기존 매핑은 `재검증 필요` 표시, 담당자 변경은 감사로그(OWNER_CHANGE)
+- 업로드 보안검증: `.xlsx` 확장자 + ZIP 서명 + OOXML 구조(매크로/VBA/ActiveX/외부연결/포함개체 거부) + Zip bomb·경로조작 검사 + 크기 제한(기본 5MB) + 수식 셀 거부. 원본 파일명은 표시용으로만 쓰고 `data\uploads\<UUID>.xlsx` 로 저장
+- 웹 업로드 화면은 Phase 6에서 같은 처리 흐름으로 제공합니다.
 
 ## 수동 취약점 수집 (Phase 2)
 
