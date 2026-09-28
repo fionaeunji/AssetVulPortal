@@ -169,3 +169,28 @@ def vuln_owner(av_id: int, request: Request, owner: str = Form(..., max_length=6
         db.rollback()
         flash(request, str(e), "error")
     return RedirectResponse(f"/vulns/{av_id}", status_code=303)
+
+
+# ---------------- Excel Export ----------------
+@router.get("/export.xlsx")
+def export_xlsx(request: Request, principal: Principal = Depends(current_principal), db: Session = Depends(get_db)):
+    from fastapi.responses import Response
+
+    from app.services.exporter import MAX_EXPORT_ROWS, build_workbook, export_filename
+    from app.services.vuln_status import CLOSED_STATUSES
+    pv, policy = active_policy(db, request)
+    rule_names = [r.name for r in policy.rules]
+    now = utcnow()
+    f = _parse_filter(request, rule_names)
+    total, rows = repo.list_vulns(db, f, rule_names, now, limit_all=True)
+    filter_desc = "; ".join(f"{k}={v}" for k, v in request.query_params.multi_items() if k != "page")[:500]
+    data = build_workbook(rows, now=now, exported_by=principal.username, policy_version=pv.version,
+                          filter_desc=filter_desc, kpi=repo.kpis(db, rule_names, now),
+                          closed_statuses={s.value for s in CLOSED_STATUSES})
+    audit.record(db, actor=principal.username, actor_role=principal.role.value, action=audit.AuditAction.EXPORT,
+                 target_type="report", client_ip=client_ip(request),
+                 after={"rows": min(total, MAX_EXPORT_ROWS), "filter": filter_desc, "policy_version": pv.version})
+    db.commit()
+    return Response(content=data,
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{export_filename(now)}"'})

@@ -28,7 +28,8 @@
   <button type="submit">검색</button> <a href="/">초기화</a>
 </form>
 
-<p class="muted">{{ total }}건 · 정책 {{ policy_version }}</p>
+<div class="bar"><p class="muted">{{ total }}건 · 정책 {{ policy_version }}</p>
+  <a class="button" href="/export.xlsx?{{ qs() }}">Excel 다운로드 (현재 조건)</a></div>
 <div class="tablewrap">
 <table class="grid">
 <thead><tr>

@@ -4,7 +4,14 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 7 완료** (자동 수집 Scheduler + 감사로그 점검). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 8 완료** (Excel Export + Formula Injection 방어). 전체 README는 Phase 10에서 완성합니다.
+
+## Excel Export (Phase 8)
+
+- 웹: Dashboard **[Excel 다운로드 (현재 조건)]** — 화면의 검색/필터 조건 그대로 `.xlsx` 생성 (Viewer 이상, 감사로그 `EXPORT`에 사용자·필터·행 수 기록)
+- CLI: `python -m scripts.export_report --out report.xlsx [--all]`
+- 시트: `취약점 현황`(요구 컬럼 + CVSS Vector·최초 조치기한·매핑방식·매핑근거·CVE 설명), `요약`(생성일시 KST·생성자·정책 버전·필터·KPI)
+- **Formula Injection 방어**: 문자열이 `= + - @`, 탭/CR/LF, 전각 `＝＋－＠` 로 시작하면 앞에 `'` 를 붙이고 셀 타입을 문자열로 강제 → Excel에서 수식·DDE로 실행되지 않음. 숫자·날짜는 실제 타입으로 기록, 누락값은 빈 셀. 파일명은 서버 생성(`vuln_report_YYYYMMDD_HHMM.xlsx`)
 
 ## 실행 방법 (Windows PowerShell)
 
