@@ -4,7 +4,7 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 6 완료** (웹 Dashboard · 상세 · 상태관리 · 매핑 검토 · 관리자 화면). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 7 완료** (자동 수집 Scheduler + 감사로그 점검). 전체 README는 Phase 10에서 완성합니다.
 
 ## 실행 방법 (Windows PowerShell)
 
@@ -37,6 +37,42 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 # 8) 테스트
 python -m pytest
 ```
+
+## 자동 수집 Scheduler (Phase 7)
+
+웹 서버와 **별도 프로세스**로 실행합니다 (CMD 창을 하나 더 열어 실행).
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m app.scheduler --next        # 다음 실행 예정 시각 (Asia/Seoul)
+python -m app.scheduler               # 상주 실행: 매일 09:00, 14:00 (Asia/Seoul)
+python -m app.scheduler --run-once    # 스케줄 경로를 지금 1회 점검
+```
+
+| 항목 | 동작 |
+|---|---|
+| 시각 | APScheduler Cron `hour=9,14 minute=0`, timezone `Asia/Seoul` (PC 시간대 설정과 무관) |
+| 중복 방지 | 수집 서비스의 DB Lease Lock 공유 → 웹 [지금 수집]과 스케줄이 겹치면 나중 것은 건너뜀(감사로그 `rejected`). 스케줄러 자체도 `max_instances=1`, `coalesce` |
+| PC 절전/재시작 | 예정 시각 후 1시간 이내 재개 시 1회 실행(`misfire_grace_time`), 비정상 종료로 남은 Lock은 `COLLECTION_LOCK_MINUTES` 경과 후 자동 해제 |
+| 오류 | 수집 실패는 `collection_history`/서버 로그에 기록, 스케줄러는 계속 동작, 기존 데이터 유지 |
+| online 모드 | NVD/EPSS/KEV 수집 → Bundle → Import → 매핑·판정 |
+| offline(VDI) 모드 | 외부 통신 없이 `data\bundles\inbox\*.json` 을 검증 후 Import → 성공 `processed\`, 실패 `failed\` 로 이동 |
+
+Windows 작업 스케줄러로 대신 운영하려면 `python -m app.scheduler --run-once` 를 09:00/14:00 트리거로 등록해도 동일하게 동작합니다.
+
+## 감사로그 (Phase 7 점검)
+
+기록 이벤트: `LOGIN_SUCCESS/FAILURE`, `LOGOUT`, `EXCEL_UPLOAD`, `ASSET_CHANGE`, `MAPPING_APPROVE/REJECT`, `MAPPING_RUN`, `STATUS_CHANGE`, `OWNER_CHANGE`, `POLICY_CHANGE`, `COLLECTION_MANUAL/SCHEDULED`, `BUNDLE_IMPORT`, `USER_CHANGE` (+ `EXPORT`: Phase 8)
+
+| 추적 요구 | 저장 위치 |
+|---|---|
+| 언제·어떤 Source에서 수집 / 호출 목적지 | `collection_history` (source, trigger, started/finished, endpoints_called, bundle_sha256) |
+| 당시 CVSS / Initial·Current EPSS / 적용 정책 버전 | `vulnerability_assessments` (판정 Snapshot, Append-only) |
+| 어떤 자산과 왜 매핑 / 누가 승인 | `asset_vulnerabilities.match_type·match_evidence·mapping_approved_by`, `asset_product_mapping`, `audit_logs` |
+| 최초 조치기한 | `asset_vulnerabilities.initial_due_at` (DB Trigger로 변경 불가) |
+| 상태 변경 시각·변경자 | `status_history` (Append-only) + `audit_logs` |
+
+감사로그는 애플리케이션(ORM)과 DB Trigger 양쪽에서 수정·삭제를 차단하고, SHA-256 Hash chain으로 위변조를 탐지합니다(관리자 화면 → 무결성 검증).
 
 ## 웹 포털 사용 (Phase 6)
 

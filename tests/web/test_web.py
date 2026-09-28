@@ -372,3 +372,32 @@ def test_policy_apply_by_admin(portal):
     a = login(app, "admin1")
     r = a.post("/admin/policy/apply", data={"csrf_token": page_csrf(a, "/admin/policy")})
     assert r.status_code == 200 and "적용 완료" in r.text
+
+
+# ---------------- 감사로그 이벤트 커버리지 (요구사항 §15) ----------------
+def test_required_audit_events_recorded_and_immutable(portal):
+    app, factory, _ = portal
+    op = login(app, "op1")
+    # 업로드(→ Excel Upload / Asset 변경), 상태 변경, 담당자 변경, 매핑 승인/거부
+    tok = page_csrf(op, "/assets/upload")
+    op.post("/assets/upload", data={"csrf_token": tok},
+            files={"file": ("sample_assets.xlsx", SAMPLE.read_bytes(), "application/octet-stream")})
+    i = av_id(factory, "WEB-001", "CVE-2021-41773")
+    op.post(f"/vulns/{i}/status", data={"status": "확인중", "csrf_token": page_csrf(op, f"/vulns/{i}")})
+    op.post(f"/vulns/{i}/owner", data={"owner": "보안담당", "csrf_token": page_csrf(op, f"/vulns/{i}")})
+    with factory() as s:
+        pend = s.execute(select(MappingCandidate.id).where(
+            MappingCandidate.status == CandidateStatus.PENDING).order_by(MappingCandidate.id)).scalars().all()
+    op.post(f"/mappings/{pend[0]}/approve", data={"csrf_token": page_csrf(op, "/mappings")})
+    op.post(f"/mappings/{pend[1]}/reject", data={"csrf_token": page_csrf(op, "/mappings")})
+    adm = login(app, "admin1")
+    adm.post("/admin/policy/apply", data={"csrf_token": page_csrf(adm, "/admin/policy")})
+    with factory() as s:
+        actions = set(s.execute(select(AuditLog.action)).scalars())
+    required = {"LOGIN_SUCCESS", "EXCEL_UPLOAD", "ASSET_CHANGE", "MAPPING_APPROVE", "MAPPING_REJECT",
+                "STATUS_CHANGE", "OWNER_CHANGE", "POLICY_CHANGE", "COLLECTION_MANUAL"}
+    assert required <= actions, required - actions
+    # 감사로그 수정/삭제 경로 없음 + 무결성 검증
+    for method in ("post", "put", "delete", "patch"):
+        assert getattr(adm, method)("/admin/audit").status_code in (403, 404, 405)
+    assert "무결성 검증 성공" in adm.get("/admin/audit?verify=1").text
