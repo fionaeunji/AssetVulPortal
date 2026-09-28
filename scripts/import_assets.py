@@ -30,7 +30,8 @@ def main() -> int:
     data = args.file.read_bytes()
     out = import_asset_upload(get_sessionmaker(), filename=args.file.name, data=data, actor="cli",
                               actor_role="admin", upload_dir=settings.upload_dir,
-                              max_bytes=settings.upload_max_bytes)
+                              max_bytes=settings.upload_max_bytes,
+                              policy_file=settings.policy_file)
     print(out.message)
     for e in out.errors:
         print(f"  [오류] {e.row}행 {e.column}: {e.message}")
@@ -42,6 +43,10 @@ def main() -> int:
     print(f"  자산 {out.asset_count}개 (신규 {s.assets_created}, 변경 {s.assets_updated}, 비활성화 {s.assets_deactivated})")
     print(f"  제품 신규 {s.products_created}, 변경 {s.products_updated}, 비활성화 {s.products_deactivated}, "
           f"재검증 표시 {s.revalidation_flagged}")
+    if out.mapping:
+        m = out.mapping
+        print(f"  매핑: 신규 취약 {m.vulnerable_new}건, 검토필요 {m.review_new}건, 후보 {m.candidates_new}건 "
+              f"(상세: python -m scripts.run_matching)")
     with get_sessionmaker()() as db:
         print("\n  Asset ID    자산명            구분    IP              제품 / 버전 / CPE")
         for a in db.execute(select(Asset).where(Asset.is_active.is_(True)).order_by(Asset.asset_code)).scalars():

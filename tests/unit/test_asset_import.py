@@ -57,7 +57,7 @@ def test_sample_file_has_20_plus_assets():
 def test_import_sample(factory, tmp_path):
     out = run(factory, tmp_path, SAMPLE.read_bytes(), "sample_assets.xlsx")
     assert out.ok, out.errors
-    assert out.asset_count == 22 and out.summary.products_created == 23
+    assert out.asset_count == 23 and out.summary.products_created == 24
     with factory() as s:
         web = s.execute(select(Asset).where(Asset.asset_code == "WEB-001")).scalar_one()
         assert web.zone == Zone.PERIMETER and web.owner_name == "가상담당자01"

@@ -4,7 +4,7 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 3 완료** (샘플 자산대장 + 안전한 Excel Import). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 5 완료** (매칭 엔진 + 정책 엔진/조치기한). 전체 README는 Phase 10에서 완성합니다.
 
 ## 실행 방법 (Windows PowerShell)
 
@@ -38,6 +38,53 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 python -m pytest
 ```
 
+## 매핑·판정 (Phase 4·5)
+
+자산 업로드와 취약점 수집이 끝나면 **자동으로** 매핑·판정이 실행됩니다. 수동 재실행/결과 확인:
+
+```powershell
+python -m scripts.run_matching                 # 매핑·판정 실행 + 결과표 + 검토 대기 목록
+python -m scripts.review_mapping approve 3 --comment "담당자 확인"   # 후보 승인
+python -m scripts.review_mapping reject 4       # 후보 거부
+```
+
+### 매칭 규칙 (False Positive 최소화)
+
+| Level | 대상 | 방법 | 결과 |
+|---|---|---|---|
+| 1 | CPE가 있는 제품 | NVD `configurations` 를 3값 논리(참/거짓/판단불가)로 평가. `versionStart/End Including/Excluding` 경계 처리, `update`·`sw_edition` 등 속성 비교, AND 구성의 플랫폼(OS/하드웨어) 조건 평가 | 참 → **취약 확정**, 판단불가 → **검토 필요(L3)** |
+| 2 | CPE가 없거나 잘못된 제품 | Vendor/Product/Version 으로 후보 CPE 제안 (`config/product_aliases.yaml` + 수집된 CPE 사전) | **자동 확정 안 함** → [매핑 승인] 시 저장·재사용 |
+| 3 | Level 1 판단불가 | 예: 자산 CPE에 update 미기재, 버전 표기 비교 불가(`19c` vs `19.3`), 플랫폼 정보 없음 | 사람이 승인해야 취약 확정 |
+
+- 버전 비교가 불확실하면(예: `2.4.x`, Tomcat `-M1` vs Cisco `M` train) 비교 불가로 처리하여 자동 판정하지 않습니다.
+- 승인된 제품 매핑(`asset_product_mapping`)은 같은 Vendor/Product 의 다른 자산에 자동 재사용되고, 매핑 근거에 승인자·승인일이 남습니다.
+- 거부된 후보는 다시 제안되지 않습니다. 자산 버전이 바뀌어 더 이상 매칭되지 않는 건은 삭제하지 않고 `재검증 필요`로 표시합니다.
+
+**Match Confidence (Level 2 전용, 규칙 합산 — 임의 숫자 아님)**
+
+| 규칙 | 점수 |
+|---|---|
+| Vendor 일치 (특수문자 제거 후 동일) / 별칭 사전 일치 | 30 / 20 |
+| Product 일치 / 별칭 사전 일치 / 토큰 겹침(Jaccard ≥ 0.5) | 40 / 25 / 10 |
+| 수집된 CVE 조건과 버전 비교가 결정적으로 가능 | 20 |
+| 별칭 사전(`product_aliases.yaml`)에 등록된 제품 | 10 |
+
+합계 50점 이상 후보만 상위 3개 제시. Level 1은 결정적 규칙이므로 Confidence를 표시하지 않고 매칭유형(CPE_EXACT/CPE_RANGE/…)과 근거를 표시합니다. Level 3은 "산정불가"로 표시합니다.
+
+### 정책 설정 (`config/policy.yaml`)
+
+- 등급 규칙은 위에서부터 순서대로 평가해 처음 만족하는 규칙을 적용합니다 (긴급 → 우선 → 주의).
+- 정책 변경: 파일 수정 후 **`version` 값을 반드시 변경** → 다음 매핑 실행 시 새 정책 버전으로 재판정. 과거 판정은 `vulnerability_assessments` 에 정책 버전과 함께 보존되고, 최초 조치기한(`initial_due_at`)은 바뀌지 않습니다. (관리자 화면 정책 적용은 Phase 6)
+- **EPSS 미발행 CVE**(`missing_behavior: pending`): CVSS가 EPSS 조건 규칙(≥ 9.0)에 해당하면 `EPSS 대기`로 판정보류, 최초 EPSS 관측 시 그 값이 Initial EPSS가 되어 재판정됩니다.
+- CVSS 선택: `cvss.source_priority` (v3.1 NVD → v3.1 CNA → v4.0 → v3.0). CVSS가 없는 CVE는 "관리대상 아님"으로 표시하되 사유(CVSS 미제공)를 기록합니다.
+
+**조치기한 계산 방법 (현재 적용)**
+
+- 기산점: 시스템이 해당 자산-CVE 매핑을 최초 확정한 시각(탐지일, UTC 저장 / 화면 KST)
+- `month_mode: fixed_days`, `days_per_month: 30` → **1개월 = 30일, 1.5개월 = 45일, 3개월 = 90일** (사용자 결정 Q1)
+- `hours`/`days` 는 그대로 가산 (72시간, 14일)
+- 대안 `month_mode: calendar`: 정수 개월은 달력 기준(말일 보정, 예: 1/31 + 1개월 = 2/28) + 소수부 × 30일
+
 ## 자산관리대장 Import (Phase 3)
 
 ```powershell
@@ -45,7 +92,7 @@ python -m scripts.import_assets sample_data\sample_assets.xlsx
 python -m scripts.collect          # 업로드된 자산의 CPE 제품 기준으로 실제 수집
 ```
 
-- 샘플: `sample_data/sample_assets.xlsx` — 가상 자산 22개/제품 23개 (IP는 RFC 5737 문서용 대역, 담당자·부서는 가상 명칭). `비고` 열에 매칭 기대값 기재. 재생성: `python -m scripts.generate_sample_assets`
+- 샘플: `sample_data/sample_assets.xlsx` — 가상 자산 23개/제품 24개 (IP는 RFC 5737 문서용 대역, 담당자·부서는 가상 명칭). `비고` 열에 매칭 기대값 기재. 재생성: `python -m scripts.generate_sample_assets`
 - 필수 컬럼: `Asset ID, 자산명, 자산구분(경계면/내부), IP, Vendor, Product, Version, CPE, 중요도(상/중/하), 담당자, 부서` (그 외 열은 무시)
 - 같은 Asset ID를 여러 행에 쓰면 한 자산의 여러 제품(OS+앱 등)으로 등록
 - **오류 행이 하나라도 있으면 파일 전체를 반영하지 않고** 행/열별 오류를 보여줍니다. 잘못된 CPE는 오류가 아닌 경고(해당 제품은 CPE 매칭 제외, 후보 매칭 대상)

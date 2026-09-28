@@ -373,11 +373,12 @@ class AssetUploadOutcome:
     warnings: list[RowError] = field(default_factory=list)
     summary: ImportSummary | None = None
     asset_count: int = 0
+    mapping: object | None = None   # MappingSummary
 
 
 def import_asset_upload(session_factory, *, filename: str | None, data: bytes, actor: str,
                         actor_role: str | None, upload_dir: Path, max_bytes: int,
-                        client_ip: str | None = None) -> AssetUploadOutcome:
+                        client_ip: str | None = None, policy_file: Path | None = None) -> AssetUploadOutcome:
     from app.security.upload_validator import UploadRejected, store_upload, validate_xlsx_upload
 
     def _audit_failure(reason: str, display: str | None, sha: str | None) -> None:
@@ -413,5 +414,16 @@ def import_asset_upload(session_factory, *, filename: str | None, data: bytes, a
         except Exception:
             s.rollback()
             raise
+    mapping = None
+    if policy_file is not None:
+        from app.services.mapping_service import run_mapping_with_active_policy
+        with session_factory() as s:
+            try:
+                mapping = run_mapping_with_active_policy(s, actor=actor, policy_file=policy_file)
+                s.commit()
+            except Exception:  # noqa: BLE001 - 자산 반영은 유지, 매핑은 재실행 가능
+                s.rollback()
+                import logging
+                logging.getLogger(__name__).exception("mapping after asset import failed")
     return AssetUploadOutcome(ok=True, message="자산관리대장을 반영했습니다.", warnings=parsed.warnings,
-                              summary=summary, asset_count=len(parsed.assets))
+                              summary=summary, asset_count=len(parsed.assets), mapping=mapping)
