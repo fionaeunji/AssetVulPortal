@@ -4,7 +4,7 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 5 완료** (매칭 엔진 + 정책 엔진/조치기한). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 6 완료** (웹 Dashboard · 상세 · 상태관리 · 매핑 검토 · 관리자 화면). 전체 README는 Phase 10에서 완성합니다.
 
 ## 실행 방법 (Windows PowerShell)
 
@@ -37,6 +37,27 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 # 8) 테스트
 python -m pytest
 ```
+
+## 웹 포털 사용 (Phase 6)
+
+```powershell
+python -m scripts.create_user --username admin --role admin      # 최초 1회 (operator / viewer 도 가능)
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+브라우저에서 http://127.0.0.1:8000 접속 → 로그인
+
+| 메뉴 | 기능 | 권한 |
+|---|---|---|
+| Dashboard | KPI(전체/취약 자산, 긴급·우선·주의, EPSS 대기, 기한 초과), 취약점 목록, 검색(CVE·IP·Hostname·제품·담당자), 필터(등급·KEV·자산구분·기한초과·담당자·상태) | Viewer 이상 |
+| 취약점 상세 | SOURCE DATA(CVSS·Vector·EPSS·KEV) / CALCULATED DATA(등급·기한·남은시간·매핑방식·매핑근거), 상태/판정 이력 | Viewer 이상 |
+| 상태 변경·담당자 지정 | 신규/확인중/조치예정/조치중/조치완료/예외처리/오탐 (예외처리·오탐은 사유 필수) | Operator 이상 |
+| 자산 | 자산 목록·상세, **자산관리대장 업로드** | 조회 Viewer / 업로드 Operator |
+| 매핑 검토 | Level 2 후보(Confidence·산정근거) / Level 3 검토 → [매핑 승인] [매핑 제외] | 조회 Viewer / 처리 Operator |
+| 수집 | **[지금 취약점 정보 수집]** 버튼, 수집 이력(외부 목적지·오류) | 실행 Operator |
+| 감사로그 | 이벤트 조회, Hash chain 무결성 검증 (수정·삭제 기능 없음) | Admin |
+| 정책 | 활성 정책·버전 이력, `config/policy.yaml` 새 버전 적용(재판정) | Admin |
+
+보안: 모든 상태변경 요청 CSRF 토큰 검증 + SameSite=Strict 쿠키, 세션 유휴 만료(기본 30분), 로그인 5회 실패 시 15분 잠금, 권한은 매 요청 DB 기준 확인, CSP(`script-src 'self'`, 인라인 스크립트/스타일 없음), 요청 크기 제한, 오류 화면에 내부 정보 미노출.
 
 ## 매핑·판정 (Phase 4·5)
 

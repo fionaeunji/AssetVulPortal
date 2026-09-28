@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}자산{% endblock %}
+{% block content %}
+<div class="bar">
+  <form method="get" action="/assets" class="inline"><input name="q" value="{{ q }}" maxlength="100" placeholder="Asset ID / 자산명 / IP / 담당자"><button>검색</button></form>
+  {% if role in ['operator', 'admin'] %}<a class="button" href="/assets/upload">자산관리대장 업로드</a>{% endif %}
+</div>
+<table class="grid">
+<thead><tr><th>Asset ID</th><th>자산명</th><th>구분</th><th>IP</th><th>제품</th><th>중요도</th><th>담당자</th><th>부서</th><th>취약 매핑</th></tr></thead>
+<tbody>
+{% for a in assets %}
+<tr>
+  <td><a href="/assets/{{ a.id }}">{{ a.asset_code }}</a></td><td>{{ a.name }}</td><td>{{ a.zone.value }}</td><td>{{ a.ip or '-' }}</td>
+  <td>{% for p in a.products if p.is_active %}<div>{{ p.product_raw or p.product_norm }} {{ p.version_norm or '' }}{% if not p.cpe_normalized %} <span class="badge reval">{{ 'CPE 오류' if p.cpe_error else 'CPE 없음' }}</span>{% endif %}</div>{% endfor %}</td>
+  <td>{{ a.criticality.value }}</td><td>{{ a.owner_name or '-' }}</td><td>{{ a.department or '-' }}</td><td class="num">{{ counts.get(a.id, 0) }}</td>
+</tr>
+{% else %}<tr><td colspan="9" class="muted">등록된 자산이 없습니다. 자산관리대장을 업로드하세요.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

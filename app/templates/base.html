@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}취약점 관리 포털{% endblock %} · VulPortal PoC</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <a class="brand" href="/">IT자산 취약점 관리 포털 <span class="tag">PoC</span></a>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/assets">자산</a>
+    <a href="/mappings">매핑 검토</a>
+    <a href="/collections">수집</a>
+    {% if role == 'admin' %}<a href="/admin/audit">감사로그</a><a href="/admin/policy">정책</a>{% endif %}
+  </nav>
+  <div class="who">
+    <span>{{ user }} ({{ role }})</span>
+    <span class="mode">{{ collector_mode }}</span>
+    <form method="post" action="/logout" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <button type="submit" class="link">로그아웃</button>
+    </form>
+  </div>
+</header>
+{% endif %}
+<main>
+  {% for f in flashes %}<div class="flash flash-{{ f.kind }}">{{ f.msg }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<footer>시간 표시: Asia/Seoul (KST) · 데이터 원본: NVD / FIRST EPSS / CISA KEV</footer>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}자산관리대장 업로드{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>자산관리대장 업로드 (.xlsx)</h1>
+  <form method="post" action="/assets/upload" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="file" name="file" accept=".xlsx" required>
+    <button type="submit">업로드</button>
+  </form>
+  <p class="muted">필수 컬럼: Asset ID, 자산명, 자산구분(경계면/내부), IP, Vendor, Product, Version, CPE, 중요도(상/중/하), 담당자, 부서 · 오류 행이 있으면 전체 반영하지 않습니다.</p>
+</section>
+{% if result %}
+<section class="card">
+  <div class="flash {{ 'flash-ok' if result.ok else 'flash-error' }}">{{ result.message }}</div>
+  {% if result.summary %}
+  <p>자산 {{ result.asset_count }}개 — 신규 {{ result.summary.assets_created }}, 변경 {{ result.summary.assets_updated }}, 비활성화 {{ result.summary.assets_deactivated }} ·
+     제품 신규 {{ result.summary.products_created }}, 변경 {{ result.summary.products_updated }}, 재검증 표시 {{ result.summary.revalidation_flagged }}</p>
+  {% if result.mapping %}<p>매핑: 신규 취약 {{ result.mapping.vulnerable_new }}건 · 검토필요 {{ result.mapping.review_new }}건 · 후보 {{ result.mapping.candidates_new }}건</p>{% endif %}
+  {% endif %}
+  {% if result.errors or result.warnings %}
+  <table class="grid"><thead><tr><th>구분</th><th>행</th><th>열</th><th>내용</th></tr></thead><tbody>
+  {% for e in result.errors %}<tr><td class="overdue">오류</td><td>{{ e.row }}</td><td>{{ e.column }}</td><td>{{ e.message }}</td></tr>{% endfor %}
+  {% for w in result.warnings %}<tr><td>경고</td><td>{{ w.row }}</td><td>{{ w.column }}</td><td>{{ w.message }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

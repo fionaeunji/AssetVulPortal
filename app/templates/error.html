@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}오류{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>오류 {{ code }}</h1>
+  <p>{{ message }}</p>
+  {% if error_id %}<p class="muted">오류 ID: {{ error_id }}</p>{% endif %}
+  <p><a href="/">Dashboard로 돌아가기</a></p>
+</section>
+{% endblock %}

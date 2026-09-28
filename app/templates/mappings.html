@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}매핑 검토{% endblock %}
+{% block content %}
+<div class="bar"><h1>매핑 검토 필요</h1>
+  <span><a href="/mappings">대기</a> · <a href="/mappings?show=all">전체</a></span></div>
+<p class="muted">Level 2: CPE가 없는 제품의 후보 CPE (규칙 점수) · Level 3: 규칙으로 판정할 수 없는 CVE (사람 확인 필요). 승인 전까지 취약으로 확정되지 않습니다.</p>
+{% for c, p, a in rows %}
+<section class="card cand">
+  <div class="bar">
+    <strong>#{{ c.id }} · Level {{ c.level }} · <a href="/assets/{{ a.id }}">{{ a.asset_code }}</a> {{ a.name }}</strong>
+    <span class="badge">{{ c.status.value }}</span>
+  </div>
+  <dl class="kv">
+    <dt>등록정보</dt><dd>{{ p.vendor_raw or '' }} {{ p.product_raw or '' }} {{ p.version_raw or '' }}</dd>
+    <dt>{{ '추정 CPE' if c.level == 2 else '자산 CPE' }}</dt><dd><code>{{ c.proposed_cpe }}</code></dd>
+    {% if c.cve_id %}<dt>CVE</dt><dd>{{ c.cve_id }}</dd>{% endif %}
+    <dt>Match Confidence</dt><dd>{% if c.confidence is not none %}{{ c.confidence }}%
+      <span class="muted small">({% for k, val in (c.breakdown.get('rules') or {}).items() %}{{ k }} +{{ val }}{{ ', ' if not loop.last }}{% endfor %})</span>
+      {% else %}산정불가 <span class="muted small">(결정적 규칙으로 판정 불가)</span>{% endif %}</dd>
+    <dt>근거</dt><dd class="small">{{ c.reason }}{% for n in (c.breakdown.get('notes') or []) %}<div class="muted">{{ n }}</div>{% endfor %}</dd>
+    {% if c.decided_by %}<dt>처리</dt><dd>{{ c.decided_by }} · {{ c.decided_at|kst }}</dd>{% endif %}
+  </dl>
+  {% if can_edit and c.status.value == 'pending' %}
+  <div class="actions">
+    <form method="post" action="/mappings/{{ c.id }}/approve" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input name="comment" maxlength="512" placeholder="승인 사유(선택)">
+      <button type="submit">매핑 승인</button>
+    </form>
+    <form method="post" action="/mappings/{{ c.id }}/reject" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <button type="submit" class="secondary">매핑 제외</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<p class="muted">검토할 항목이 없습니다.</p>
+{% endfor %}
+{% endblock %}

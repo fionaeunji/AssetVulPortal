@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}로그인{% endblock %}
+{% block content %}
+<section class="login">
+  <h1>IT자산 취약점 관리 포털</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>아이디 <input name="username" maxlength="64" required autofocus></label>
+    <label>비밀번호 <input name="password" type="password" maxlength="256" required></label>
+    <button type="submit">로그인</button>
+  </form>
+  <p class="muted">계정 생성: <code>python -m scripts.create_user --username admin --role admin</code></p>
+</section>
+{% endblock %}

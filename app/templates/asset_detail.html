@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sev_badge, remain %}
+{% block title %}{{ a.name }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ a.name }} <span class="muted">{{ a.asset_code }}</span>{% if not a.is_active %} <span class="badge reval">비활성</span>{% endif %}</h1>
+  <dl class="kv">
+    <dt>중요도</dt><dd>{{ a.criticality.value }}</dd><dt>구분</dt><dd>{{ a.zone.value }}</dd><dt>IP</dt><dd>{{ a.ip or '-' }}</dd>
+    <dt>담당자</dt><dd>{{ a.owner_name or '-' }}</dd><dt>부서</dt><dd>{{ a.department or '-' }}</dd>
+  </dl>
+  <h2>제품</h2>
+  <table class="grid"><thead><tr><th>Vendor</th><th>Product</th><th>Version</th><th>CPE</th><th>상태</th></tr></thead><tbody>
+  {% for p in a.products %}<tr><td>{{ p.vendor_raw or '' }}</td><td>{{ p.product_raw or '' }}</td><td>{{ p.version_raw or '' }}</td>
+  <td><code>{{ p.cpe_normalized or '-' }}</code>{% if p.cpe_error %}<div class="overdue small">CPE 오류: {{ p.cpe_error }}</div>{% endif %}</td>
+  <td>{{ '사용' if p.is_active else '비활성' }}{% if p.cpe_source == 'mapping' %} · 승인 매핑{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+<section class="card">
+  <h2>취약점</h2>
+  <table class="grid"><thead><tr><th>등급</th><th>CVE</th><th>CVSS</th><th>Initial EPSS</th><th>KEV</th><th>조치기한</th><th>남은시간</th><th>상태</th><th>매핑</th></tr></thead><tbody>
+  {% for av, v in vulns %}<tr><td>{{ sev_badge(av) }}</td><td><a href="/vulns/{{ av.id }}">{{ v.cve_id }}</a></td>
+  <td class="num">{{ '%.1f'|format(v.cvss_score) if v.cvss_score is not none else '-' }}</td><td class="num">{{ v.epss_initial|epss }}</td>
+  <td>{% if v.kev %}<span class="badge kev">KEV</span>{% endif %}</td><td>{{ av.due_at|kst }}</td><td>{{ remain(av, now) }}</td>
+  <td>{{ av.status.value }}{% if av.needs_revalidation %} <span class="badge reval">재검증</span>{% endif %}</td><td class="small">{{ av.match_type.value }}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">매핑된 취약점 없음</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}

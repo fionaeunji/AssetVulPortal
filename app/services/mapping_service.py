@@ -106,7 +106,8 @@ def assess(session: Session, av: AssetVulnerability, vuln: Vulnerability, asset:
     av.severity_rank = decision.rank
     av.due_at = due
     av.policy_version_id = pv.id
-    av.owner = asset.owner_name
+    if not av.owner_override:
+        av.owner = asset.owner_name
     if av.initial_due_at is None and due is not None:
         av.initial_due_at = due      # 최초 조치기한 (이후 불변, DB Trigger)
     if changed:

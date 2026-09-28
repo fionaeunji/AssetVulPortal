@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}정책{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>취약점 정책</h1>
+  {% if active %}
+  <p>활성 정책: <strong>{{ active.version }}</strong> <span class="muted">SHA-256 {{ active.content_sha256[:16] }}… · {{ active.created_by }} · {{ active.created_at|kst }}</span></p>
+  <table class="grid"><thead><tr><th>순서</th><th>등급</th><th>조건</th><th>경계면 기한</th><th>내부 기한</th></tr></thead><tbody>
+  {% for r in policy.rules %}<tr><td>{{ loop.index }}</td><td>{{ r.name }}</td>
+  <td>CVSS ≥ {{ r.cvss_min }}{% if r.epss_initial_min is not none %} AND Initial EPSS ≥ {{ r.epss_initial_min }}{% endif %}</td>
+  {% for d in [r.deadline.perimeter, r.deadline.internal] %}<td>{% if d.hours %}{{ d.hours }}시간{% elif d.days %}{{ d.days }}일{% else %}{{ d.months }}개월{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  </tbody></table>
+  <p class="muted">월 계산: {{ policy.deadline.month_mode.value }} (1개월 = {{ policy.deadline.days_per_month }}일) · EPSS 미발행: {{ policy.epss.missing_behavior.value }} · CVSS 우선순위: {{ policy.cvss.source_priority|join(' → ') }}</p>
+  {% endif %}
+  <form method="post" action="/admin/policy/apply">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button type="submit">config/policy.yaml 을 새 정책 버전으로 적용 (재판정)</button>
+  </form>
+  <p class="muted">정책 파일 수정 시 <code>version</code> 값을 변경해야 합니다. 과거 판정은 이력으로 보존됩니다.</p>
+</section>
+<section class="card"><h2>정책 파일 (config/policy.yaml)</h2><pre>{{ file_text }}</pre></section>
+<section class="card"><h2>정책 버전 이력</h2>
+<table class="grid"><thead><tr><th>버전</th><th>활성</th><th>등록자</th><th>등록일시</th><th>SHA-256</th></tr></thead><tbody>
+{% for v in versions %}<tr><td>{{ v.version }}</td><td>{{ '●' if v.is_active }}</td><td>{{ v.created_by }}</td><td>{{ v.created_at|kst }}</td><td><code>{{ v.content_sha256[:16] }}…</code></td></tr>{% endfor %}
+</tbody></table></section>
+{% endblock %}

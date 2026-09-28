@@ -296,7 +296,8 @@ def apply_import(session: Session, parsed: ParseResult, *, actor: str, actor_rol
                 if before["owner"] != after["owner"]:
                     # 담당자 변경: 미종결 취약점의 담당자도 갱신 + 별도 감사
                     session.execute(update(AssetVulnerability)
-                                    .where(AssetVulnerability.asset_id == a.id)
+                                    .where(AssetVulnerability.asset_id == a.id,
+                                           AssetVulnerability.owner_override.is_(False))
                                     .values(owner=a.owner_name))
                     audit.record(session, actor=actor, actor_role=actor_role,
                                  action=audit.AuditAction.OWNER_CHANGE, target_type="asset",
