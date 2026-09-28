@@ -19,7 +19,7 @@ from pydantic import ValidationError
 
 from app.config.endpoints import ENDPOINTS
 from app.schemas.nvd import NvdCveResponse
-from app.services.http_client import ResponseTooLarge, get_limited
+from app.services.http_client import ResponseTooLarge, get_limited, is_cert_verification_error
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,10 @@ class NvdClient:
             except ResponseTooLarge:
                 raise NvdError("NVD response too large") from None
             except httpx.TransportError as e:
-                status, reason = None, e.__class__.__name__
+                if is_cert_verification_error(e):
+                    # 인증서 문제는 재시도해도 해결되지 않음 → 즉시 중단 (README 'SSL 검사 환경' 참고)
+                    raise NvdError(f"TLS certificate verification failed: {str(e)[:200]}") from None
+                status, reason = None, f"{e.__class__.__name__}: {str(e)[:200]}"
             else:
                 reason = f"HTTP {status}"
                 if status == 200:

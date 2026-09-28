@@ -7,6 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -38,6 +39,7 @@ class Settings(BaseSettings):
     data_dir: Path = PROJECT_ROOT / "data"
     collector_mode: CollectorMode = CollectorMode.ONLINE
     nvd_api_key: SecretStr | None = None
+    tls_trust_store: Literal["system", "certifi"] = "system"   # 외부 HTTPS 인증서 신뢰 저장소
     bundle_hmac_key: SecretStr | None = None          # Collector-Portal 공유 비밀 (선택)
     epss_csv_threshold: int = Field(1000, ge=1)        # 대상 CVE 수가 이 값 이상이면 Bulk CSV 사용
     collection_lock_minutes: int = Field(120, ge=5, le=1440)

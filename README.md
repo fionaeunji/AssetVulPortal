@@ -51,7 +51,10 @@ python -m scripts.collect --product a:apache:http_server --product a:apache:tomc
 - 결과: `data\bundles\bundle_*.json` 생성 → 검증 후 DB 반영, `collection_history`/`audit_logs` 기록
 - 출력의 `sources[].status` 로 Source별 성공/실패 확인. 실패해도 기존 데이터는 삭제되지 않습니다.
 - NVD API Key가 없으면 요청 간 6초 간격(5 req/30s)이 적용됩니다. `.env` 의 `NVD_API_KEY` 설정 시 0.6초.
-- 사내 Proxy/사설 인증서: `HTTPS_PROXY`, `SSL_CERT_FILE` 환경변수 사용 (httpx 표준)
+- 사내 Proxy: `HTTPS_PROXY` 환경변수 사용 (httpx 표준)
+- **회사 SSL 검사(복호화) 환경**: 기본값 `TLS_TRUST_STORE=system` 으로 **Windows 인증서 저장소**를 사용하므로
+  회사 루트 CA가 PC에 배포되어 있으면 추가 설정 없이 동작합니다(`truststore` 패키지).
+  별도 CA 파일이 있으면 `SSL_CERT_FILE=C:\경로\ca.pem` 으로 추가 신뢰. 인증서 검증을 끄는 옵션은 제공하지 않습니다.
 
 ### 수집 방식
 
@@ -105,4 +108,5 @@ python -m scripts.import_bundle .\out\bundle_xxx.json
 | itsdangerous | 서명 세션 쿠키 |
 | PyYAML | 정책 파일 (`safe_load`만 사용) |
 | tzdata | Windows에서 `Asia/Seoul` 시간대 DB 제공 |
+| truststore | OS(Windows) 인증서 저장소로 TLS 검증 — 회사 SSL 검사 장비 환경 대응 |
 | pytest (dev) | 자동화 테스트 |

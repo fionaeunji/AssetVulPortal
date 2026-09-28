@@ -7,10 +7,13 @@
 """
 from __future__ import annotations
 
+import os
+import ssl
 import threading
 from urllib.parse import urlsplit
 
 import httpx
+import truststore
 
 from app.config.endpoints import is_allowed_url
 
@@ -40,9 +43,39 @@ class DestinationRecorder:
             ]
 
 
+def make_ssl_context(trust_store: str = "system") -> ssl.SSLContext | bool:
+    """TLS 검증 컨텍스트. 인증서 검증은 어떤 경우에도 끄지 않는다.
+
+    - system : OS 인증서 저장소 사용(Windows 인증서 저장소 등). 회사 SSL 검사 장비의 루트 CA가
+               OS에 배포된 환경에서 추가 설정 없이 동작. SSL_CERT_FILE 이 있으면 해당 CA도 추가 신뢰.
+    - certifi: Python 내장 공개 CA 목록만 사용 (httpx 기본)
+    """
+    if trust_store == "certifi":
+        return True
+    if trust_store != "system":
+        raise ValueError("trust_store must be 'system' or 'certifi'")
+    ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    extra = os.environ.get("SSL_CERT_FILE")
+    if extra and os.path.isfile(extra):
+        ctx.load_verify_locations(cafile=extra)
+    return ctx
+
+
+def is_cert_verification_error(exc: BaseException) -> bool:
+    seen = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(cur):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 def build_client(
     recorder: DestinationRecorder | None = None,
     transport: httpx.BaseTransport | None = None,
+    trust_store: str = "system",
 ) -> httpx.Client:
     def _on_request(request: httpx.Request) -> None:
         url = str(request.url.copy_with(query=None))
@@ -58,6 +91,7 @@ def build_client(
         headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
         event_hooks={"request": [_on_request]},
         transport=transport,
+        verify=make_ssl_context(trust_store) if transport is None else True,
     )
 
 

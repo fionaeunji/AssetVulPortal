@@ -56,7 +56,7 @@ def main() -> int:
         targets += [NvdTarget(k, None) for k in args.product]
         known = set(data.get("known_cve_ids", []))
         rec = DestinationRecorder()
-        with build_client(rec) as http:
+        with build_client(rec, trust_store=settings.tls_trust_store) as http:
             bundle = collect(
                 targets, known, http=http,
                 nvd_api_key=settings.nvd_api_key.get_secret_value() if settings.nvd_api_key else None,

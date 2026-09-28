@@ -14,3 +14,4 @@ python-multipart==0.0.32
 itsdangerous==2.2.0
 PyYAML==6.0.3
 tzdata==2026.4
+truststore==0.10.4

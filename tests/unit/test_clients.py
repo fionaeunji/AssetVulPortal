@@ -233,3 +233,27 @@ def test_oversized_response_rejected():
         with pytest.raises(ResponseTooLarge):
             get_limited(c, "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
                         limit=1024)
+
+
+# ---------------- TLS (회사 SSL 검사 환경 대응) ----------------
+def test_ssl_context_verifies_certificates():
+    import ssl
+
+    from app.services.http_client import make_ssl_context
+    ctx = make_ssl_context("system")
+    assert isinstance(ctx, ssl.SSLContext)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert make_ssl_context("certifi") is True
+    with pytest.raises(ValueError):
+        make_ssl_context("none")
+
+
+def test_nvd_cert_error_not_retried():
+    def handler(req):
+        raise httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: "
+                                 "self-signed certificate in certificate chain")
+    sleeps = []
+    client = NvdClient(build_client(transport=httpx.MockTransport(handler)), sleep=sleeps.append)
+    with pytest.raises(NvdError, match="certificate verification failed"):
+        client.fetch_product("a:apache:http_server", None, datetime.now(timezone.utc))
+    assert not any(s >= 2 for s in sleeps)   # Backoff 재시도 없음
