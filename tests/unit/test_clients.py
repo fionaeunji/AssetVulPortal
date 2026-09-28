@@ -257,3 +257,39 @@ def test_nvd_cert_error_not_retried():
     with pytest.raises(NvdError, match="certificate verification failed"):
         client.fetch_product("a:apache:http_server", None, datetime.now(timezone.utc))
     assert not any(s >= 2 for s in sleeps)   # Backoff 재시도 없음
+
+
+# ---------------- Redirect / EPSS fallback ----------------
+def test_redirect_followed_only_to_allowlisted_host():
+    from app.services.http_client import DisallowedDestination, get_limited
+
+    def handler(req):
+        if req.url.path.endswith(".csv.gz") and req.url.host == "epss.empiricalsecurity.com":
+            return httpx.Response(302, headers={"location": "https://api.first.org/data/v1/epss"})
+        return httpx.Response(200, content=b"ok")
+    with build_client(transport=httpx.MockTransport(handler)) as c:
+        assert get_limited(c, "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz",
+                           limit=100) == (200, b"ok")
+
+    def evil(req):
+        return httpx.Response(302, headers={"location": "https://evil.example.net/steal"})
+    with build_client(transport=httpx.MockTransport(evil)) as c:
+        with pytest.raises(DisallowedDestination, match="evil.example.net"):
+            get_limited(c, "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz", limit=100)
+
+
+def test_epss_csv_failure_falls_back_to_api():
+    from app.services.collector import collect
+    fake = FakeExternal(epss={"CVE-2021-41773": (0.9, 0.99)})
+    orig = fake.handle
+
+    def handler(req):
+        if req.url.host == "epss.empiricalsecurity.com":
+            return httpx.Response(302, headers={"location": "https://blocked.example.org/x"})
+        return orig(req)
+    with build_client(transport=httpx.MockTransport(handler)) as http:
+        b = collect([], {"CVE-2021-41773"}, http=http, nvd_api_key=None, epss_csv_threshold=1,
+                    nvd_client=NvdClient(http, sleep=lambda s: None))
+    src = {s.source: s for s in b.manifest.sources}["EPSS"]
+    assert src.status == "success" and "blocked.example.org" in src.error and "fell back" in src.error
+    assert b.payload.epss[0].epss == 0.9

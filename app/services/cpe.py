@@ -16,8 +16,9 @@ FIELDS = ("part", "vendor", "product", "version", "update", "edition", "language
           "sw_edition", "target_sw", "target_hw", "other")
 
 _MAX_LEN = 512
-# CPE 2.3 formatted string: 영숫자와 `_ . - ~`, 와일드카드 `* ?` 외 특수문자는 반드시 `\` 이스케이프
-_ALLOWED_VALUE = re.compile(r"^(?:-|(?:[A-Za-z0-9._\-~*?]|\\[\x21-\x7e])+)$")
+# CPE 2.3 규격상 특수문자는 `\` 이스케이프가 원칙이나, 실제 NVD 데이터에도 미이스케이프 값이
+# 존재한다 (예: cisco:ios:15.2(7)e13). 공백·제어문자·비ASCII만 거부하고 비교는 unescape 후 수행한다.
+_ALLOWED_VALUE = re.compile(r"^(?:[\x21-\x7e])+$")
 
 
 class InvalidCPE(ValueError):

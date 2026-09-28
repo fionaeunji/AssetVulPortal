@@ -99,18 +99,39 @@ class ResponseTooLarge(RuntimeError):
     pass
 
 
+REDIRECT_STATUS = {301, 302, 303, 307, 308}
+MAX_REDIRECTS = 3
+
+
 def get_limited(client: httpx.Client, url: str, *, limit: int, params: dict | None = None,
                 headers: dict | None = None) -> tuple[int, bytes]:
-    """스트리밍으로 읽으며 크기 제한 초과 시 즉시 중단 (메모리 고갈 방지). 200 이외는 본문을 읽지 않음."""
-    with client.stream("GET", url, params=params, headers=headers) as resp:
-        if resp.status_code != 200:
-            return resp.status_code, b""
-        declared = resp.headers.get("content-length")
-        if declared and declared.isdigit() and int(declared) > limit:
-            raise ResponseTooLarge("response exceeds size limit")
-        buf = bytearray()
-        for chunk in resp.iter_bytes():
-            buf.extend(chunk)
-            if len(buf) > limit:
+    """스트리밍으로 읽으며 크기 제한 초과 시 즉시 중단 (메모리 고갈 방지). 200 이외는 본문을 읽지 않음.
+
+    Redirect는 Allowlist 목적지로만 최대 3회 수동 추적한다 (SSRF 방지). 허용되지 않은 목적지로의
+    Redirect는 목적지 Host를 포함한 DisallowedDestination 으로 알린다 (Allowlist 갱신 판단 근거).
+    """
+    current, cur_params = url, params
+    for _ in range(MAX_REDIRECTS + 1):
+        with client.stream("GET", current, params=cur_params, headers=headers) as resp:
+            if resp.status_code in REDIRECT_STATUS:
+                location = resp.headers.get("location")
+                if not location:
+                    return resp.status_code, b""
+                nxt = str(resp.url.join(location))
+                if not is_allowed_url(nxt.split("?", 1)[0]):
+                    raise DisallowedDestination(
+                        f"redirect to non-allowlisted destination: {urlsplit(nxt).hostname}")
+                current, cur_params = nxt, None
+                continue
+            if resp.status_code != 200:
+                return resp.status_code, b""
+            declared = resp.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > limit:
                 raise ResponseTooLarge("response exceeds size limit")
-        return 200, bytes(buf)
+            buf = bytearray()
+            for chunk in resp.iter_bytes():
+                buf.extend(chunk)
+                if len(buf) > limit:
+                    raise ResponseTooLarge("response exceeds size limit")
+            return 200, bytes(buf)
+    raise DisallowedDestination("too many redirects")

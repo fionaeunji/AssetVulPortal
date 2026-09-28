@@ -231,3 +231,16 @@ def test_offline_bundle_import_and_tamper(factory, settings, seeded, tmp_path):
     with factory() as s:
         last = s.execute(select(CollectionHistory).order_by(CollectionHistory.id.desc())).scalars().first()
         assert last.status == CollectionStatus.FAILED
+
+
+def test_unchanged_record_with_missing_cpe_rows_is_repaired(factory, settings, seeded):
+    fake = FakeExternal(epss=EPSS)
+    _run(fake, factory, settings)
+    with factory() as s:
+        n = _count(s, VulnerabilityProduct)
+        s.execute(VulnerabilityProduct.__table__.delete().where(
+            VulnerabilityProduct.cve_id == "CVE-2021-41773"))
+        s.commit()
+    _run(fake, factory, settings, full=True)
+    with factory() as s:
+        assert _count(s, VulnerabilityProduct) == n

@@ -115,14 +115,24 @@ def collect(
     if wanted:
         use_csv = len(wanted) >= epss_csv_threshold
         endpoint = epss.csv_url if use_csv else epss.api_url
+        note = None
         try:
-            epss_records = epss.fetch_csv(wanted) if use_csv else epss.fetch_api(wanted)
+            try:
+                epss_records = epss.fetch_csv(wanted) if use_csv else epss.fetch_api(wanted)
+            except Exception as e:  # noqa: BLE001
+                if not use_csv:
+                    raise
+                # Bulk CSV 실패 시 API(100건 단위)로 대체 수집
+                note = f"CSV failed ({_err(e)}); fell back to API"
+                logger.warning("EPSS CSV failed, falling back to API: %s", _err(e))
+                endpoint = epss.api_url
+                epss_records = epss.fetch_api(wanted)
             sources.append(SourceInfo(source="EPSS", endpoint=endpoint, fetched_at=utcnow(),
-                                      status="success", count=len(epss_records)))
+                                      status="success", count=len(epss_records), error=note))
         except Exception as e:  # noqa: BLE001
             logger.warning("EPSS collection failed: %s", _err(e))
             sources.append(SourceInfo(source="EPSS", endpoint=endpoint, fetched_at=utcnow(),
-                                      status="failed", error=_err(e)))
+                                      status="failed", error=(note + "; " if note else "") + _err(e)))
     else:
         sources.append(SourceInfo(source="EPSS", endpoint=epss.api_url, fetched_at=utcnow(),
                                   status="skipped"))

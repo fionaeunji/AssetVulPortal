@@ -27,6 +27,13 @@ def test_parse_escaped_cpe():
     assert unescape(c2.product) == "prod:uct"
 
 
+def test_parse_nvd_unescaped_parentheses():
+    # 실제 NVD 데이터 (CVE-2026-20012): 괄호가 이스케이프되지 않은 Cisco IOS 버전
+    c = parse_cpe("cpe:2.3:o:cisco:ios:15.2(7)e13:*:*:*:*:*:*:*")
+    assert c.version == "15.2(7)e13"
+    assert unescape(parse_cpe(r"cpe:2.3:o:cisco:ios:15.2\(7\)e13:*:*:*:*:*:*:*").version) == "15.2(7)e13"
+
+
 def test_parse_update_field():
     c = parse_cpe("cpe:2.3:a:oracle:jdk:1.8.0:update_401:*:*:*:*:*:*")
     assert c.update == "update_401"
@@ -38,7 +45,7 @@ def test_parse_update_field():
     "cpe:2.3:a:*:http_server:2.4:*:*:*:*:*:*:*",               # vendor ANY
     "cpe:2.3:a:apache:http server:2.4:*:*:*:*:*:*:*",          # 공백
     "cpe:2.3:a:apache:http_server:2.4:*:*:*:*:*:*:*:extra",    # 필드 초과
-    "cpe:2.3:a:apache:<script>:2.4:*:*:*:*:*:*:*",             # 미이스케이프 특수문자
+    "cpe:2.3:a:apache:http_server:2.4\t:*:*:*:*:*:*:*",         # 제어문자(탭)
     "cpe:2.3:a:아파치:http_server:2.4:*:*:*:*:*:*:*",           # non-ASCII
     "cpe:2.3:a:apache:http_server:2.4:*:*:*:*:*:*:\\",         # dangling escape
     "cpe:2.3:a:apache:http_server:" + "9" * 600 + ":*:*:*:*:*:*:*",

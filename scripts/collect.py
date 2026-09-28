@@ -34,6 +34,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="NVD / EPSS / KEV 수집")
     ap.add_argument("--product", action="append", type=_validate_key, default=[],
                     help="추가 수집 대상 part:vendor:product")
+    ap.add_argument("--full", action="store_true", help="증분 커서를 무시하고 전체 이력 재조회")
     ap.add_argument("--targets-file", type=Path, help="(외부망 Collector) 대상 JSON 파일")
     ap.add_argument("--out-dir", type=Path, help="(외부망 Collector) Bundle 출력 디렉터리")
     args = ap.parse_args()
@@ -75,7 +76,7 @@ def main() -> int:
 
     try:
         out = run_online_collection(CollectionTrigger.MANUAL, actor="cli",
-                                    extra_product_keys=args.product)
+                                    extra_product_keys=args.product, full=args.full)
     except CollectionBusy:
         print("이미 수집이 실행 중입니다.", file=sys.stderr)
         return 1
