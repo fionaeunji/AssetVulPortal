@@ -117,6 +117,6 @@ def list_vulns(session: Session, f: VulnFilter, rule_names: list[str], now: date
 
 
 def owners(session: Session) -> list[str]:
-    return [o for (o,) in session.execute(select(distinct(AssetVulnerability.owner))
+    return [o for (o,) in session.execute(select(AssetVulnerability.owner)
                                           .where(AssetVulnerability.owner.is_not(None))
-                                          .order_by(AssetVulnerability.owner)).all()]
+                                          .distinct().order_by(AssetVulnerability.owner)).all()]

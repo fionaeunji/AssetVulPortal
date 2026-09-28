@@ -107,17 +107,21 @@ def test_ip_rate_limit_blocks_even_correct_password(portal):  # noqa: F811
 
 
 def test_rate_limiter_window_and_reset():
-    lim = LoginRateLimiter(max_failures=2, window_seconds=600)
+    now = [1000.0]                                   # 가짜 시계 (OS 시계 해상도와 무관하게 결정적)
+    lim = LoginRateLimiter(max_failures=2, window_seconds=600, clock=lambda: now[0])
     lim.failure("1.1.1.1")
     assert not lim.blocked("1.1.1.1")
     lim.failure("1.1.1.1")
     assert lim.blocked("1.1.1.1") and not lim.blocked("2.2.2.2")
     lim.success("1.1.1.1")
     assert not lim.blocked("1.1.1.1")
-    lim.window = 0
     lim.failure("3.3.3.3")
     lim.failure("3.3.3.3")
-    assert not lim.blocked("3.3.3.3")      # 창 밖 기록은 만료
+    assert lim.blocked("3.3.3.3")
+    now[0] += 600                                    # 창 경계: 아직 유효
+    assert lim.blocked("3.3.3.3")
+    now[0] += 1                                      # 창 밖으로 벗어남 → 만료
+    assert not lim.blocked("3.3.3.3")
 
 
 def test_failed_login_username_sanitized_in_audit(portal):  # noqa: F811
