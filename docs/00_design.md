@@ -1,6 +1,6 @@
 # IT자산 취약점 관리 포털 PoC — 설계서 (Phase 0)
 
-- 문서 상태: **초안 / 사용자 확인 대기**
+- 문서 상태: **확정 (2026-09-28 사용자 결정 반영, §13)**
 - 작성일: 2026-09-28
 - 범위: 요구사항 분석, 위험요소, Architecture, DB Schema, 데이터 흐름, 외부 연동, Matching 알고리즘, Secure Coding Checklist, Phase 계획
 
@@ -496,3 +496,14 @@ AssetVulPortal/
 | pyyaml | 정책 YAML (`safe_load`만 사용) |
 | tzdata | Windows에서 `Asia/Seoul` 시간대 |
 | pytest (dev) | 테스트 |
+
+## 13. 사용자 결정사항 (2026-09-28)
+
+| # | 질문 | 결정 | 적용 |
+|---|---|---|---|
+| Q1 | 1.5개월 계산 | **45일 고정** | `deadline.month_mode: fixed_days`, `days_per_month: 30` → 월 단위는 일관되게 30일 환산 (1개월=30일, 1.5개월=45일, 3개월=90일). `calendar` 모드도 설정으로 전환 가능 |
+| Q2 | EPSS 미발행 CVE | **판정보류 후 재판정** | `epss.missing_behavior: pending` → 상태 표시 "EPSS 대기", 최초 EPSS 관측 시 Initial EPSS 확정 후 판정. 기한 기산점은 탐지일 |
+| Q3 | CVSS 우선순위 | **v3.1 NVD → CNA → v4.0** | `cvss.source_priority: [v31_primary, v31_secondary, v40_primary, v40_secondary, v30_primary, v30_secondary]`, 사용된 버전·출처 기록 |
+| Q4 | 수집 범위 | **자산 기반 + 증분** | 자산 CPE별 `cpeName`/`virtualMatchString` 조회 + `lastModStartDate/EndDate` 증분 |
+
+> 가정: Q1의 "45일 고정"을 1개월·3개월에도 동일한 30일 환산으로 적용했습니다. 정수 개월만 달력 기준으로 하려면 `month_mode` 설정 변경으로 처리합니다(코드 수정 불필요).
