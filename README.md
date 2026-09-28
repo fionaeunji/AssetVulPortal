@@ -4,7 +4,18 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 8 완료** (Excel Export + Formula Injection 방어). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 9 완료** (Secure Coding 검토 — [`docs/security_review.md`](docs/security_review.md)). 전체 README는 Phase 10에서 완성합니다.
+
+## 보안 점검 실행 (Phase 9)
+
+```powershell
+pip install -r requirements-dev.txt
+python -m pytest                          # 전체 자동화 테스트 (보안 테스트 포함)
+bandit -r app scripts                     # 정적 분석
+pip-audit -r requirements.txt             # 의존성 알려진 취약점 조회 (인터넷 필요)
+```
+
+검토 결과·보완 내역·Checklist·필수 테스트 대응표: [`docs/security_review.md`](docs/security_review.md)
 
 ## Excel Export (Phase 8)
 

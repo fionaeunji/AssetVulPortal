@@ -44,7 +44,8 @@ def get_engine() -> Engine:
 
 def get_sessionmaker() -> sessionmaker[Session]:
     get_engine()
-    assert _SessionLocal is not None
+    if _SessionLocal is None:  # pragma: no cover - get_engine() 가 항상 설정
+        raise RuntimeError("session factory not initialized")
     return _SessionLocal
 
 

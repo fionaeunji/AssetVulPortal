@@ -1,2 +1,5 @@
 -r requirements.txt
 pytest==9.1.1
+# 보안 점검 도구 (Phase 9)
+bandit==1.9.4
+pip-audit==2.10.1

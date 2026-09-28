@@ -52,6 +52,8 @@ def create_app(settings: Settings | None = None,
     app.state.session_factory = session_factory
     from app.services.vulnerability_collector import run_online_collection
     app.state.collection_runner = run_online_collection
+    from app.security.auth import LoginRateLimiter
+    app.state.login_limiter = LoginRateLimiter()
 
     @app.middleware("http")
     async def _limits_and_headers(request: Request, call_next):
@@ -61,13 +63,15 @@ def create_app(settings: Settings | None = None,
                 else MAX_FORM_BYTES
             cl = request.headers.get("content-length")
             if cl is None or not cl.isdigit():
-                if request.url.path == "/assets/upload":
-                    return PlainTextResponse("Length Required", status_code=411)
-            elif int(cl) > limit:
+                # chunked 전송으로 크기 제한을 우회하지 못하도록 Content-Length 필수 (브라우저 폼은 항상 전송)
+                return PlainTextResponse("Length Required", status_code=411)
+            if int(cl) > limit:
                 return PlainTextResponse("요청 크기 제한을 초과했습니다.", status_code=413)
         response = await call_next(request)
         for k, v in SECURITY_HEADERS.items():
             response.headers.setdefault(k, v)
+        if is_prod:   # 운영(HTTPS 뒤)에서만 HSTS
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         return response
 
     # SessionMiddleware 는 가장 바깥에서 동작해야 하므로 마지막에 추가

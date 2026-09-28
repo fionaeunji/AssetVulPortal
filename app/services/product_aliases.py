@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.config.settings import PROJECT_ROOT
 
 ALIASES_FILE = PROJECT_ROOT / "config" / "product_aliases.yaml"
-_TOKEN = r"^[a-z0-9_.\-+]{1,128}$"
+_TOKEN = r"^[a-z0-9_.\-+]{1,128}$"  # nosec B105 - 토큰 형식 정규식 (비밀번호 아님)
 
 
 class _Strict(BaseModel):

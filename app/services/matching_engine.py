@@ -242,7 +242,7 @@ def evaluate_cve(cve_id: str, rows: list[MatchRow], asset_cpes: list[AssetCpe]) 
 # ---------------------------------------------------------------------------
 SCORE_RULES = {
     "vendor_exact": 30, "vendor_alias": 20,
-    "product_exact": 40, "product_alias": 25, "product_token_overlap": 10,
+    "product_exact": 40, "product_alias": 25, "product_token_overlap": 10,  # nosec B105 - 점수 규칙명
     "version_decisive": 20, "alias_registered": 10,
 }
 MIN_CANDIDATE_SCORE = 50

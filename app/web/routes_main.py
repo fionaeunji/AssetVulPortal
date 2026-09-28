@@ -20,7 +20,7 @@ from app.models import (
 from app.models.enums import RemediationStatus, Role, Zone
 from app.models.types import utcnow
 from app.repositories import dashboard_repo as repo
-from app.security.auth import LocalAuthProvider, Principal
+from app.security.auth import LocalAuthProvider, LoginRateLimiter, Principal
 from app.security.validators import clean_text
 from app.services import audit
 from app.services.policy_loader import apply_policy_file, get_active_policy
@@ -54,11 +54,20 @@ def login(request: Request, username: str = Form(..., max_length=64), password: 
     if not expected or not hmac.compare_digest(csrf_token, expected):
         raise HTTPException(status_code=403, detail="요청이 유효하지 않습니다. 새로고침 후 다시 시도하세요.")
     username = (username or "").strip()
-    principal = auth_provider.authenticate(db, username, password)
     ip = client_ip(request)
+    safe_name = (clean_text(username[:64], 64) or "-") if username else "-"
+    login_limiter: LoginRateLimiter = request.app.state.login_limiter
+    if login_limiter.blocked(ip):
+        audit.record(db, actor=safe_name, action=audit.AuditAction.LOGIN_FAILURE, target_type="user",
+                     target_id=safe_name, client_ip=ip, result="rate_limited")
+        db.commit()
+        return render(request, "login.html", {"error": "로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요."},
+                      status_code=429)
+    principal = auth_provider.authenticate(db, username, password)
     if principal is None:
-        audit.record(db, actor=username[:64] or "-", action=audit.AuditAction.LOGIN_FAILURE,
-                     target_type="user", target_id=username[:64], client_ip=ip, result="failure")
+        login_limiter.failure(ip)
+        audit.record(db, actor=safe_name, action=audit.AuditAction.LOGIN_FAILURE,
+                     target_type="user", target_id=safe_name, client_ip=ip, result="failure")
         db.commit()
         return render(request, "login.html", {"error": "아이디 또는 비밀번호가 올바르지 않거나 잠긴 계정입니다."},
                       status_code=401)
@@ -66,6 +75,7 @@ def login(request: Request, username: str = Form(..., max_length=64), password: 
                  action=audit.AuditAction.LOGIN_SUCCESS, target_type="user", target_id=principal.username,
                  client_ip=ip)
     db.commit()
+    login_limiter.success(ip)
     login_session(request, principal)
     return RedirectResponse("/", status_code=303)
 

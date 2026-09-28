@@ -5,6 +5,9 @@
 """
 from __future__ import annotations
 
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Protocol
@@ -58,3 +61,38 @@ class LocalAuthProvider:
         user.locked_until = None
         user.last_login_at = now
         return Principal(username=user.username, role=user.role)
+
+
+class LoginRateLimiter:
+    """IP 단위 로그인 실패 제한 (Sliding window, 프로세스 메모리). 운영 다중 인스턴스는 공용 저장소로 교체."""
+
+    def __init__(self, max_failures: int = 20, window_seconds: int = 600) -> None:
+        self.max_failures = max_failures
+        self.window = window_seconds
+        self._fails: dict[str, deque[float]] = {}
+        self._lock = threading.Lock()
+
+    def _prune(self, key: str, now: float) -> deque[float]:
+        q = self._fails.setdefault(key, deque())
+        while q and now - q[0] > self.window:
+            q.popleft()
+        return q
+
+    def blocked(self, key: str | None) -> bool:
+        if not key:
+            return False
+        with self._lock:
+            return len(self._prune(key, time.monotonic())) >= self.max_failures
+
+    def failure(self, key: str | None) -> None:
+        if not key:
+            return
+        with self._lock:
+            self._prune(key, time.monotonic()).append(time.monotonic())
+            if len(self._fails) > 10000:          # 메모리 상한
+                self._fails.pop(next(iter(self._fails)))
+
+    def success(self, key: str | None) -> None:
+        if key:
+            with self._lock:
+                self._fails.pop(key, None)
