@@ -95,3 +95,13 @@ class JobLock(Base):
     holder: Mapped[str] = mapped_column(String(128))
     acquired_at: Mapped[datetime] = mapped_column(UTCDateTime)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class SyncState(Base):
+    """증분 수집 커서 (예: key='nvd:a:apache:http_server' → 마지막 성공 lastModEndDate)."""
+
+    __tablename__ = "sync_state"
+
+    key: Mapped[str] = mapped_column(String(320), primary_key=True)
+    value: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)

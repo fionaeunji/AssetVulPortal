@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     data_dir: Path = PROJECT_ROOT / "data"
     collector_mode: CollectorMode = CollectorMode.ONLINE
     nvd_api_key: SecretStr | None = None
+    bundle_hmac_key: SecretStr | None = None          # Collector-Portal 공유 비밀 (선택)
+    epss_csv_threshold: int = Field(1000, ge=1)        # 대상 CVE 수가 이 값 이상이면 Bulk CSV 사용
+    collection_lock_minutes: int = Field(120, ge=5, le=1440)
     upload_max_bytes: int = Field(5 * 1024 * 1024, ge=1024, le=50 * 1024 * 1024)
     session_idle_minutes: int = Field(30, ge=5, le=480)
     policy_file: Path = PROJECT_ROOT / "config" / "policy.yaml"
@@ -50,7 +53,7 @@ class Settings(BaseSettings):
             raise ValueError("APP_SECRET_KEY must be at least 32 characters")
         return v
 
-    @field_validator("nvd_api_key", mode="before")
+    @field_validator("nvd_api_key", "bundle_hmac_key", mode="before")
     @classmethod
     def _empty_key_is_none(cls, v):
         return v or None

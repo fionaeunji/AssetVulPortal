@@ -4,7 +4,7 @@
 취약 자산을 식별·분류·기한관리하는 사내망용 포털의 PoC입니다.
 
 - 설계서: [`docs/00_design.md`](docs/00_design.md)
-- 진행 상태: **Phase 1 완료** (Skeleton + DB Schema + 인증/감사 기반). 전체 README는 Phase 10에서 완성합니다.
+- 진행 상태: **Phase 2 완료** (NVD / EPSS / KEV Collector + Bundle Import). 전체 README는 Phase 10에서 완성합니다.
 
 ## 실행 방법 (Windows PowerShell)
 
@@ -36,6 +36,44 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 # 8) 테스트
 python -m pytest
+```
+
+## 수동 취약점 수집 (Phase 2)
+
+```powershell
+# 등록 자산 기준 수집 (자산 업로드는 Phase 3에서 제공)
+python -m scripts.collect
+
+# 자산 등록 전, 특정 제품으로 실제 수집 검증
+python -m scripts.collect --product a:apache:http_server --product a:apache:tomcat
+```
+
+- 결과: `data\bundles\bundle_*.json` 생성 → 검증 후 DB 반영, `collection_history`/`audit_logs` 기록
+- 출력의 `sources[].status` 로 Source별 성공/실패 확인. 실패해도 기존 데이터는 삭제되지 않습니다.
+- NVD API Key가 없으면 요청 간 6초 간격(5 req/30s)이 적용됩니다. `.env` 의 `NVD_API_KEY` 설정 시 0.6초.
+- 사내 Proxy/사설 인증서: `HTTPS_PROXY`, `SSL_CERT_FILE` 환경변수 사용 (httpx 표준)
+
+### 수집 방식
+
+| Source | 방식 | Endpoint |
+|---|---|---|
+| NVD | 자산 CPE의 제품(`part:vendor:product`) 단위 `virtualMatchString` 조회. 첫 수집은 전체 이력, 이후 `lastModStartDate/EndDate` 증분(120일 단위 분할) | `services.nvd.nist.gov/rest/json/cves/2.0` |
+| EPSS | 보유 CVE 수 < `EPSS_CSV_THRESHOLD` 면 API 100건 단위 조회, 이상이면 Bulk CSV | `api.first.org/data/v1/epss`, `epss.empiricalsecurity.com/epss_scores-current.csv.gz` |
+| KEV | 카탈로그 전체 JSON | `www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` |
+
+- **Initial EPSS**: 시스템이 해당 CVE의 EPSS를 최초 관측한 값. 이후 변경 불가(DB Trigger로 강제). **Current EPSS**는 더 최신 score date일 때만 갱신, 날짜별 이력은 `epss_history`.
+- **CVSS**: NVD가 제공한 모든 점수를 `cvss_metrics`에 원본 보존, 판정용 점수는 정책의 `cvss.source_priority`(v3.1 NVD → v3.1 CNA → v4.0 → v3.0) 로 선택.
+- **KEV**: CISA 카탈로그 우선, 없으면 NVD 레코드의 `cisaExploitAdd`로 표시 (`kev_source`). 등급 판정에는 미반영.
+
+### VDI(인터넷 차단) 분리 운영
+
+```powershell
+# [내부 Portal] 수집 대상 파일 생성 (자산 IP/담당자 미포함, 제품키와 CVE ID만)
+python -m scripts.export_targets --out targets.json
+# [외부 Collector PC] DB 없이 수집 → Bundle 파일
+python -m scripts.collect --targets-file targets.json --out-dir .\out
+# [내부 Portal] 반입된 Bundle 검증(SHA-256, 선택적 HMAC) 후 Import  (.env: COLLECTOR_MODE=offline)
+python -m scripts.import_bundle .\out\bundle_xxx.json
 ```
 
 ## Phase 1 구현 범위

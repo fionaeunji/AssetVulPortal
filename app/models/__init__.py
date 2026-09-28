@@ -2,8 +2,8 @@
 from app.models.asset import Asset, AssetProduct, ImportBatch
 from app.models.asset_vulnerability import AssetVulnerability, StatusHistory, VulnerabilityAssessment
 from app.models.mapping import AssetProductMapping, MappingCandidate
-from app.models.system import AuditLog, CollectionHistory, JobLock, PolicyVersion, User
-from app.models.vulnerability import EpssHistory, Vulnerability, VulnerabilityProduct
+from app.models.system import AuditLog, CollectionHistory, JobLock, PolicyVersion, SyncState, User
+from app.models.vulnerability import EpssHistory, KevEntry, Vulnerability, VulnerabilityProduct
 
 __all__ = [
     "Asset",
@@ -15,9 +15,11 @@ __all__ = [
     "EpssHistory",
     "ImportBatch",
     "JobLock",
+    "KevEntry",
     "MappingCandidate",
     "PolicyVersion",
     "StatusHistory",
+    "SyncState",
     "User",
     "Vulnerability",
     "VulnerabilityAssessment",
