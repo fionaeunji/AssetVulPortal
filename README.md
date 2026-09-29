@@ -172,10 +172,11 @@ python -m app.scheduler --run-once    & rem 지금 1회 실행
 ## 9. 정책 설정방법 (`config/policy.yaml`)
 
 ```yaml
-version: "2026.09-01"                  # 변경 시 반드시 값 변경
+version: "2026.09-02"                  # 변경 시 반드시 값 변경
 cvss:  { source_priority: ["3.1:Primary", "3.1:Secondary", "4.0:Primary", "4.0:Secondary", "3.0:Primary", "3.0:Secondary"] }
 epss:  { missing_behavior: pending }   # EPSS 미발행 → 판정보류, 최초 EPSS 관측 시 재판정
 deadline: { month_mode: fixed_days, days_per_month: 30 }
+matching: { review_all_versions_parts: ["o"] }   # NVD '모든 버전' 등록 CVE 중 OS 는 자동 확정 대신 검토(L3)
 rules:                                 # 위에서부터 순서대로 평가 (긴급 → 우선 → 주의)
   - {key: emergency, name: "긴급", cvss_min: 9.0, epss_initial_min: 0.30, deadline: {perimeter: {hours: 72}, internal: {months: 1.5}}}
   - {key: priority,  name: "우선", cvss_min: 9.0, epss_initial_min: 0.10, deadline: {perimeter: {days: 14},  internal: {months: 1.5}}}
@@ -184,6 +185,8 @@ rules:                                 # 위에서부터 순서대로 평가 (�
 
 - 정책 값은 코드에 없습니다. 파일 수정 → `version` 변경 → 관리자 **정책 → [새 정책 버전으로 적용]** → 전체 재판정. 과거 판정은 정책 버전과 함께 `vulnerability_assessments` 에 보존, 최초 조치기한은 변경되지 않습니다.
 - CVSS ≥ 9.0 이지만 Initial EPSS < 0.1 이면 "주의"로 분류됩니다(규칙 순서).
+- `matching.review_all_versions_parts`: NVD가 버전 범위 없이 "모든 버전"으로 등록한 CVE(예: CVE-2022-26937 → `windows_server_2022:*`)는 패치된 빌드도 매칭되므로, 지정한 제품군(기본 OS `o`)은 자동 확정하지 않고 **검토 필요(L3)** 로 보냅니다. 이미 확정된 건은 삭제하지 않고 `재검증 필요`로 표시합니다.
+- 새 정책 버전(`2026.09-02`)은 관리자 **정책 → [적용]** 시 활성화됩니다. 이 항목은 기존 정책(`2026.09-01`)에서도 기본값(OS 검토)으로 동작합니다.
 
 **현재 적용한 조치기한 계산 방법**
 - 기산점: 시스템이 해당 자산-CVE 매핑을 최초 확정한 시각(탐지일, DB는 UTC / 화면·Excel은 KST)
@@ -226,7 +229,7 @@ Match Confidence(Level 2) = 규칙 합산: Vendor 일치 30 / 별칭 20, Product
 ## 12. 테스트 실행방법
 
 ```cmd
-python -m pytest                     & rem 전체 (363건, 네트워크 불필요 — 녹화 Fixture 사용)
+python -m pytest                     & rem 전체 (368건, 네트워크 불필요 — 녹화 Fixture 사용)
 python -m pytest tests\security      & rem 보안 테스트만
 bandit -r app scripts                & rem 정적 분석
 pip-audit -r requirements.txt        & rem 의존성 취약점 (인터넷 필요)

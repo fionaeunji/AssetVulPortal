@@ -65,7 +65,7 @@
 | Path Traversal | `test_upload.py::test_path_traversal_filename_cannot_escape_upload_dir`, `test_zip_path_traversal_entry_rejected`, `test_display_name_sanitized` |
 | 잘못된 CVE ID / CVSS / EPSS | `test_cpe_and_validators.py::test_invalid_cve_id` / `test_invalid_cvss` / `test_invalid_epss`, `test_schema.py::test_cvss_and_epss_range_check`, `test_normalize_rejected_and_invalid` |
 
-전체 자동화 테스트: **363건 통과** (`python -m pytest`).
+전체 자동화 테스트: **368건 통과** (`python -m pytest`).
 
 ## 5. 잔여 위험 및 운영 전환 권고
 

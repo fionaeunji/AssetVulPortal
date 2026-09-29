@@ -234,3 +234,32 @@ def test_vendor_version_notation_not_scored_as_decisive():
     c = next(x for x in generate_candidates("oracle", "java_se", "8u401", ALIASES,
                                             {("a", "oracle", "java_se")}, rows) if x.product == "java_se")
     assert "version_decisive" not in c.breakdown
+
+
+# ---------------- '모든 버전' 등록 CVE (사용자 결정: OS만 검토) ----------------
+OS_PARTS = frozenset({"o"})
+
+
+def test_os_all_versions_goes_to_review():
+    # 실제 NVD CVE-2022-26937: cpe:2.3:o:microsoft:windows_server_2022:*:... (범위 없음)
+    rows = _rows("CVE-2022-26937")
+    win = _asset("cpe:2.3:o:microsoft:windows_server_2022:10.0.20348.2700:*:*:*:*:*:*:*")
+    r = evaluate_cve("CVE-2022-26937", rows, win, OS_PARTS)
+    assert r.verdict == Verdict.REVIEW and any("모든 버전" in x for x in r.review_reasons)
+    # 정책에서 제외하면 NVD 그대로 자동 확정
+    assert evaluate_cve("CVE-2022-26937", rows, win, frozenset()).match_type == MatchType.CPE_ALL_VERSIONS
+
+
+def test_application_all_versions_still_confirmed():
+    rows = [MatchRow(0, None, False, 0, "OR", False, 0, True, "cpe:2.3:a:x:app:*:*:*:*:*:*:*:*")]
+    r = evaluate_cve("CVE-2099-0003", rows, _asset("cpe:2.3:a:x:app:1.2:*:*:*:*:*:*:*"), OS_PARTS)
+    assert r.verdict == Verdict.VULNERABLE and r.match_type == MatchType.CPE_ALL_VERSIONS
+
+
+def test_os_all_versions_as_platform_condition_still_matches():
+    # 'running on' 플랫폼(비취약) 조건의 OS:* 는 검토 대상이 아님
+    rows = [MatchRow(0, "AND", False, 0, "OR", False, 0, True, "cpe:2.3:a:x:app:1.2:*:*:*:*:*:*:*"),
+            MatchRow(0, "AND", False, 1, "OR", False, 0, False, "cpe:2.3:o:x:os:*:*:*:*:*:*:*:*")]
+    r = evaluate_cve("CVE-2099-0004", rows, _asset("cpe:2.3:a:x:app:1.2:*:*:*:*:*:*:*",
+                                                   "cpe:2.3:o:x:os:5.0:*:*:*:*:*:*:*"), OS_PARTS)
+    assert r.verdict == Verdict.VULNERABLE

@@ -162,6 +162,7 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
         select(VulnerabilityProduct.part, VulnerabilityProduct.vendor, VulnerabilityProduct.product)
         .where(VulnerabilityProduct.vulnerable.is_(True)).distinct())}
 
+    review_parts = frozenset(policy.matching.review_all_versions_parts)
     approved_by_pair = {(m.vendor_norm, m.product_norm): m for m in session.execute(
         select(AssetProductMapping).where(AssetProductMapping.decision == MappingDecision.APPROVED)).scalars()}
     assets = session.execute(select(Asset).where(Asset.is_active.is_(True))).scalars().all()
@@ -189,7 +190,7 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
                         VulnerabilityProduct.cve_id.in_(ids[i:i + 500]))).scalars():
                     rows_by_cve[vp.cve_id].append(_row(vp))
             for cve_id, rows in rows_by_cve.items():
-                results[cve_id] = evaluate_cve(cve_id, rows, asset_cpes)
+                results[cve_id] = evaluate_cve(cve_id, rows, asset_cpes, review_parts)
 
         current = {(av.asset_product_id, av.cve_id): av for av in session.execute(
             select(AssetVulnerability).where(AssetVulnerability.asset_id == asset.id)).scalars()}
@@ -226,9 +227,9 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
                 p = by_pid[res.product_id]
                 key = (p.id, cve_id, p.cpe_normalized)
                 if (p.id, cve_id) in current:
-                    if not current[(p.id, cve_id)].match_evidence.get("manual"):
-                        current[(p.id, cve_id)].needs_revalidation = True
-                    continue
+                    if (current[(p.id, cve_id)].match_evidence or {}).get("manual"):
+                        continue                   # 사람이 확정한 매핑은 유지
+                    current[(p.id, cve_id)].needs_revalidation = True   # 삭제하지 않고 재검증 표시 + 검토 후보 생성
                 reason = "; ".join(res.review_reasons)[:512]
                 prev = existing_cands.get(key)
                 if prev is None:

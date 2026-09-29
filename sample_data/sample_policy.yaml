@@ -1,7 +1,7 @@
 # 취약점 분류 정책 (코드 수정 없이 변경 가능)
 # 변경 절차: 이 파일 수정 → version 값 변경 → 관리자 화면 "정책 적용" 또는
 #            python -m scripts.apply_policy  (새 policy_versions 행 생성, 과거 판정은 보존)
-version: "2026.09-01"
+version: "2026.09-02"
 
 cvss:
   # 등급 판정에 사용할 CVSS 점수 우선순위 (사용자 결정 Q3)
@@ -26,6 +26,11 @@ deadline:
   #   calendar  : 정수 개월은 달력 기준 + 소수 개월은 × days_per_month 일
   month_mode: fixed_days
   days_per_month: 30
+
+matching:
+  # NVD가 버전 범위 없이 '모든 버전'으로 등록한 CVE를 자동 확정하지 않고 '검토 필요(L3)'로 보낼 제품군
+  #   a=애플리케이션, o=OS, h=하드웨어   (사용자 결정 2026-09-29: OS만 검토 — 빌드별 패치 여부가 갈리므로)
+  review_all_versions_parts: ["o"]
 
 # 위에서부터 순서대로 평가하여 처음 만족하는 규칙을 적용 (긴급 → 우선 → 주의)
 rules:

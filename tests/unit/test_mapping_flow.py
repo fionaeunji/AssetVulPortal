@@ -230,7 +230,7 @@ def test_policy_change_preserves_history(env):
         web = _av(s, "WEB-001", "CVE-2021-41773")
         first_due = web.initial_due_at
         text = settings.policy_file.read_text(encoding="utf-8").replace(
-            'version: "2026.09-01"', 'version: "2026.10-test"').replace("hours: 72", "hours: 48")
+            'version: "2026.09-02"', 'version: "2026.10-test"').replace("hours: 72", "hours: 48")
         newfile = settings.data_dir / "policy2.yaml"
         newfile.write_text(text, encoding="utf-8")
         apply_policy_file(s, newfile, actor="admin")
@@ -244,7 +244,7 @@ def test_policy_change_preserves_history(env):
             VulnerabilityAssessment.asset_vulnerability_id == web.id)
             .order_by(VulnerabilityAssessment.id)).scalars().all()
         versions = [s.get(PolicyVersion, x.policy_version_id).version for x in snaps]
-        assert versions == ["2026.09-01", "2026.10-test"]              # 과거 판정 보존
+        assert versions == ["2026.09-02", "2026.10-test"]              # 과거 판정 보존
         assert s.execute(select(AuditLog).where(AuditLog.action == "POLICY_CHANGE")).scalars().all()
 
 
@@ -307,3 +307,41 @@ def test_stale_level2_candidate_auto_closed(env):
         s.refresh(good)
         assert old.status == CandidateStatus.REJECTED and old.decided_by == "system"
         assert good.status == CandidateStatus.PENDING
+
+
+def test_os_all_versions_existing_mapping_moves_to_review(env):
+    """CVE-2022-26937(NVD: windows_server_2022 모든 버전) — 정책상 OS 는 자동 확정하지 않고 L3 검토."""
+    factory, _ = env
+    with factory() as s:
+        for code in ("WIN-001", "WIN-002"):
+            assert _av(s, code, "CVE-2022-26937") is None
+        cands = s.execute(select(MappingCandidate).where(MappingCandidate.level == 3,
+                                                         MappingCandidate.cve_id == "CVE-2022-26937")).scalars().all()
+        assert len(cands) == 2 and all("모든 버전" in c.reason for c in cands)
+
+
+def test_existing_confirmed_os_all_versions_flagged_and_reviewed(env):
+    """정책 변경 전 자동 확정됐던 건: 삭제하지 않고 '재검증 필요' + L3 검토 후보 생성."""
+    factory, settings = env
+    base = settings.policy_file.read_text(encoding="utf-8")
+    old = settings.data_dir / "p_old.yaml"
+    old.write_text(base.replace('version: "2026.09-02"', 'version: "t-old"')
+                   .replace('review_all_versions_parts: ["o"]', "review_all_versions_parts: []"), encoding="utf-8")
+    new = settings.data_dir / "p_new.yaml"
+    new.write_text(base.replace('version: "2026.09-02"', 'version: "t-new"'), encoding="utf-8")
+    with factory() as s:
+        apply_policy_file(s, old, actor="admin")
+        pv, pol = get_active_policy(s)
+        run_mapping(s, pv=pv, policy=pol)
+        s.commit()
+        av = _av(s, "WIN-002", "CVE-2022-26937")
+        assert av is not None and av.match_type == MatchType.CPE_ALL_VERSIONS and not av.needs_revalidation
+        apply_policy_file(s, new, actor="admin")
+        pv, pol = get_active_policy(s)
+        run_mapping(s, pv=pv, policy=pol)
+        s.commit()
+        s.refresh(av)
+        assert av.needs_revalidation
+        assert s.execute(select(MappingCandidate).where(
+            MappingCandidate.level == 3, MappingCandidate.cve_id == "CVE-2022-26937",
+            MappingCandidate.asset_product_id == av.asset_product_id)).scalar_one().status == CandidateStatus.PENDING

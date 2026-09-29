@@ -103,7 +103,8 @@ def _v(x: str) -> str:
     return unescape(x).lower()
 
 
-def eval_match_single(row: MatchRow, crit: CPE, a: AssetCpe) -> MatchEval:
+def eval_match_single(row: MatchRow, crit: CPE, a: AssetCpe,
+                      review_all_versions_parts: frozenset[str] = frozenset()) -> MatchEval:
     av = _v(a.cpe.version)
     cv = _v(crit.version)
     mt: MatchType
@@ -121,6 +122,11 @@ def eval_match_single(row: MatchRow, crit: CPE, a: AssetCpe) -> MatchEval:
                 return MatchEval(Tri.FALSE, a.product_id, None, f"범위 밖: {av} ∉ [{row.range_text()}]")
             mt, detail = MatchType.CPE_RANGE, f"범위 일치: {av} ∈ [{row.range_text()}]"
         else:
+            if row.vulnerable and crit.part in review_all_versions_parts and av not in (ANY, NA, ""):
+                # 정책(matching.review_all_versions_parts): NVD가 범위 없이 '모든 버전'으로 등록한 경우,
+                # 빌드별 패치 여부가 갈리는 제품군(OS 등)은 자동 확정하지 않고 검토로 보냄
+                return MatchEval(Tri.UNKNOWN, a.product_id, None,
+                                 f"NVD가 버전 범위 없이 '모든 버전'으로 등록 — 자산 버전 {av} 의 패치 여부 확인 필요")
             mt, detail = MatchType.CPE_ALL_VERSIONS, "모든 버전 해당 (criteria version='*', 범위 조건 없음)"
     elif cv == NA:
         # CPE Name Matching(NISTIR 7696): criteria NA('-') 와 구체 버전은 DISJOINT(불일치)
@@ -153,7 +159,8 @@ def eval_match_single(row: MatchRow, crit: CPE, a: AssetCpe) -> MatchEval:
     return MatchEval(Tri.TRUE, a.product_id, mt, detail)
 
 
-def eval_match(row: MatchRow, asset_cpes: list[AssetCpe]) -> MatchEval:
+def eval_match(row: MatchRow, asset_cpes: list[AssetCpe],
+               review_all_versions_parts: frozenset[str] = frozenset()) -> MatchEval:
     try:
         crit = parse_cpe(row.criteria)
     except InvalidCPE:
@@ -166,7 +173,7 @@ def eval_match(row: MatchRow, asset_cpes: list[AssetCpe]) -> MatchEval:
             return MatchEval(Tri.UNKNOWN, None, None,
                              f"플랫폼 조건 확인 불가: {kind} {key[1]}:{key[2]} 정보가 자산에 없음")
         return MatchEval(Tri.FALSE)
-    evals = [eval_match_single(row, crit, a) for a in cands]
+    evals = [eval_match_single(row, crit, a, review_all_versions_parts) for a in cands]
     for e in evals:
         if e.value == Tri.TRUE:
             return e
@@ -192,7 +199,8 @@ class CveResult:
     review_reasons: list[str] = field(default_factory=list)
 
 
-def evaluate_cve(cve_id: str, rows: list[MatchRow], asset_cpes: list[AssetCpe]) -> CveResult:
+def evaluate_cve(cve_id: str, rows: list[MatchRow], asset_cpes: list[AssetCpe],
+                 review_all_versions_parts: frozenset[str] = frozenset()) -> CveResult:
     configs: dict[int, dict[int, list[MatchRow]]] = {}
     for r in rows:
         configs.setdefault(r.config_index, {}).setdefault(r.node_index, []).append(r)
@@ -204,7 +212,7 @@ def evaluate_cve(cve_id: str, rows: list[MatchRow], asset_cpes: list[AssetCpe]) 
         node_vals, node_evals = [], []
         for ni in sorted(nodes):
             nrows = nodes[ni]
-            evs = [(r, eval_match(r, asset_cpes)) for r in nrows]
+            evs = [(r, eval_match(r, asset_cpes, review_all_versions_parts)) for r in nrows]
             val = t_combine(nrows[0].node_operator, [e.value for _, e in evs])
             if nrows[0].node_negate:
                 val = t_not(val)

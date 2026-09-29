@@ -210,7 +210,7 @@ def test_detail_shows_source_and_calculated_data(portal):
     html = login(app, "viewer1").get(f"/vulns/{av_id(factory, 'WEB-001', 'CVE-2021-41773')}").text
     for s in ("CVSS Vector", "CVSS:3.1/AV:N", "Initial EPSS", "Current EPSS", "매핑방식", "매핑근거",
               "CPE_EXACT", "cpe:2.3:a:apache:http_server:2.4.49", "긴급", "경계면", "가상담당자01",
-              "72시간", "2026.09-01"):
+              "72시간", "2026.09-02"):
         assert s in html, s
 
 
@@ -364,7 +364,7 @@ def test_admin_pages_rbac(portal):
     a = login(app, "admin1")
     html = a.get("/admin/audit?verify=1").text
     assert "무결성 검증 성공" in html and "LOGIN_SUCCESS" in html
-    assert "2026.09-01" in a.get("/admin/policy").text
+    assert "2026.09-02" in a.get("/admin/policy").text
 
 
 def test_policy_apply_by_admin(portal):

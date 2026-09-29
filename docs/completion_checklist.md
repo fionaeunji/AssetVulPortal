@@ -3,7 +3,7 @@
 - 기준일: 2026-09-29
 - 확인 구분
   - **Windows 실측**: 사용자 Windows PC에서 실제 인터넷 데이터로 실행해 결과를 확인한 항목
-  - **자동화 테스트**: `python -m pytest` (363건 통과) — 실제 NVD 레코드 Fixture + 가짜 외부 서버
+  - **자동화 테스트**: `python -m pytest` (368건 통과) — 실제 NVD 레코드 Fixture + 가짜 외부 서버
   - **개발환경 실행**: 개발 컨테이너에서 서버를 띄워 브라우저로 확인 (외부 데이터는 Fixture)
   - **Windows 확인 필요**: 사용자 PC에서의 확인 결과를 아직 받지 못한 항목
 
@@ -25,7 +25,7 @@
 | 14 | 취약점 상태 변경 | 상세 → 상태 변경 | 자동화 테스트 ✓ |
 | 15 | Audit Log 생성 확인 | 관리자 → 감사로그 (+ 무결성 검증) | 자동화 테스트 ✓ (필수 이벤트 전체) |
 | 16 | Excel 취약점 현황 Export | Dashboard → Excel 다운로드 / `scripts.export_report` | 자동화 테스트 ✓, 개발환경 실행 ✓ (CLI) |
-| 17 | 자동화 테스트 통과 | `python -m pytest` | **Windows 실측 ✓** (Python 3.14, 355건 통과 → 수정 후 363건) |
+| 17 | 자동화 테스트 통과 | `python -m pytest` | **Windows 실측 ✓** (Python 3.14, 355건 통과 → 수정 후 368건) |
 | 18 | 외부 통신 목적지 목록 생성 | `docs/external_communications.md`, `scripts.report_endpoints` | 문서 작성 ✓, **Windows 실측 목록 생성 ✓** (`docs\external_communications_measured.md`) |
 
 ## Windows에서 남은 확인 (약 15분)

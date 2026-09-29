@@ -96,7 +96,7 @@ def test_calendar_month_mode():
 # ---- 정책 파일 검증 (하드코딩 금지 → 설정 변경만으로 동작) ----
 def test_policy_change_without_code_change():
     text = (ROOT / "config" / "policy.yaml").read_text(encoding="utf-8").replace(
-        "epss_initial_min: 0.30", "epss_initial_min: 0.50").replace('version: "2026.09-01"', 'version: "test-2"')
+        "epss_initial_min: 0.30", "epss_initial_min: 0.50").replace('version: "2026.09-02"', 'version: "test-2"')
     p = parse_policy_text(text)
     assert decide_severity(p, 9.8, 0.40).name == "우선"
 

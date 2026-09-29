@@ -70,11 +70,25 @@ class DeadlineConfig(_Strict):
     days_per_month: int = Field(30, ge=28, le=31)
 
 
+class MatchingConfig(_Strict):
+    # NVD 가 버전 범위 없이 '모든 버전'(version='*')으로 등록한 CVE 를 자동 확정하지 않고 검토(L3)로 보낼 CPE part
+    # a=애플리케이션, o=OS, h=하드웨어 (사용자 결정 2026-09-29: OS 만 검토)
+    review_all_versions_parts: list[str] = Field(default_factory=lambda: ["o"])
+
+    @field_validator("review_all_versions_parts")
+    @classmethod
+    def _parts(cls, v: list[str]) -> list[str]:
+        if any(x not in ("a", "o", "h") for x in v):
+            raise ValueError("review_all_versions_parts must be subset of a/o/h")
+        return v
+
+
 class Policy(_Strict):
     version: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
     cvss: CvssConfig
     epss: EpssConfig = EpssConfig()
     deadline: DeadlineConfig = DeadlineConfig()
+    matching: MatchingConfig = MatchingConfig()
     rules: list[SeverityRule] = Field(min_length=1)   # 순서 = 우선순위
     default_name: str = Field("관리대상 아님", max_length=32)
 
