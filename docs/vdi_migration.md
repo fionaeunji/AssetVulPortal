@@ -64,7 +64,7 @@ Collector PC의 `.env` 에는 `COLLECTOR_MODE=online`, 동일한 `BUNDLE_HMAC_KE
 ```cmd
 python -m scripts.init_db
 python -m scripts.create_user --username admin --role admin
-uvicorn app.main:app --host 0.0.0.0 --port 8000        (운영은 리버스 프록시 뒤 127.0.0.1 바인딩 권장)
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000        (운영은 리버스 프록시 뒤 127.0.0.1 바인딩 권장)
 python -m app.scheduler                                 (별도 창 / Windows 서비스)
 ```
 

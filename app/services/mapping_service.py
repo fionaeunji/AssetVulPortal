@@ -54,6 +54,9 @@ from app.services.product_aliases import AliasBook, apply_version_rules, get_ali
 logger = logging.getLogger(__name__)
 
 
+SYSTEM_ACTOR = "system"
+
+
 class MappingError(ValueError):
     pass
 
@@ -65,6 +68,7 @@ class MappingSummary:
     vulnerable_total: int = 0
     review_new: int = 0
     candidates_new: int = 0
+    review_closed: int = 0
     revalidation_flagged: int = 0
     assessments_written: int = 0
     mappings_applied: int = 0
@@ -237,6 +241,20 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
                     summary.review_new += 1
                 elif prev.status == CandidateStatus.PENDING and prev.reason != reason:
                     prev.reason = reason
+                elif prev.status == CandidateStatus.REJECTED and prev.decided_by == SYSTEM_ACTOR:
+                    # 시스템이 자동 종료했던 후보가 다시 검토 대상이 됨 → 재개
+                    prev.status, prev.reason, prev.decided_by, prev.decided_at = \
+                        CandidateStatus.PENDING, reason, None, None
+                    summary.review_new += 1
+
+        # 재평가 결과 더 이상 '검토 필요'가 아닌 대기 L3 후보 → 자동 종료 (사람이 처리한 후보는 유지)
+        review_now = {cid for cid, r in results.items() if r.verdict == Verdict.REVIEW}
+        for (pid, cve_id, _cpe), cand in list(existing_cands.items()):
+            if cand.level == 3 and pid in by_pid and cand.status == CandidateStatus.PENDING \
+                    and cve_id not in review_now:
+                cand.status, cand.decided_by, cand.decided_at = CandidateStatus.REJECTED, SYSTEM_ACTOR, now
+                cand.reason = ("[자동 종료] 재평가 결과 검토 대상 아님 — " + (cand.reason or ""))[:512]
+                summary.review_closed += 1
 
         # 더 이상 매칭되지 않는 기존 매핑 (수동 승인 건 제외)
         for key, av in current.items():
@@ -269,6 +287,8 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
                 breakdown = {"rules": c.breakdown, "notes": c.notes}
                 prev = existing_cands.get(key)
                 if prev is not None:
+                    if prev.status == CandidateStatus.REJECTED and prev.decided_by == SYSTEM_ACTOR:
+                        prev.status, prev.decided_by, prev.decided_at = CandidateStatus.PENDING, None, None
                     # 대기 중 후보는 최신 수집 데이터 기준으로 점수 갱신 (처리된 후보는 그대로 보존)
                     if prev.status == CandidateStatus.PENDING and \
                             (prev.confidence, prev.breakdown) != (c.score, breakdown):
@@ -282,6 +302,14 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
                 session.add(cand)
                 existing_cands[key] = cand
                 summary.candidates_new += 1
+            # 규칙·데이터 변경으로 더 이상 제안되지 않는 대기 L2 후보 → 자동 종료
+            proposed_now = {c.proposed_cpe for c in cands}
+            for (pid, _cve, cpe_s), old in list(existing_cands.items()):
+                if pid == p.id and old.level == 2 and old.status == CandidateStatus.PENDING \
+                        and cpe_s not in proposed_now:
+                    old.status, old.decided_by, old.decided_at = CandidateStatus.REJECTED, SYSTEM_ACTOR, now
+                    old.reason = ("[자동 종료] 재평가 결과 더 이상 제안되지 않음 — " + (old.reason or ""))[:512]
+                    summary.review_closed += 1
     session.flush()
 
     # ---- 판정 (신규/EPSS 대기/정책 변경/재수집 반영) ----
@@ -297,6 +325,7 @@ def run_mapping(session: Session, *, pv: PolicyVersion, policy: Policy, actor: s
     audit.record(session, actor=actor, action=audit.AuditAction.MAPPING_RUN, target_type="mapping",
                  after={"policy_version": pv.version, "vulnerable_new": summary.vulnerable_new,
                         "review_new": summary.review_new, "candidates_new": summary.candidates_new,
+                        "review_closed": summary.review_closed,
                         "revalidation_flagged": summary.revalidation_flagged,
                         "assessments_written": summary.assessments_written})
     session.flush()

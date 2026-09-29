@@ -33,6 +33,13 @@ def tokenize(v: str) -> list[int | str] | None:
     return [int(t) if t.isdigit() else t for t in _TOKEN_RE.findall(s)]
 
 
+def _has_infix_alpha(tokens: list) -> bool:
+    """숫자-문자-숫자 형태(예: 8u401 → [8,'u',401])의 벤더 고유 표기 여부 (pre-release 어휘 제외)."""
+    return any(isinstance(tokens[i], str) and not _is_pre(tokens[i])
+               and isinstance(tokens[i - 1], int) and isinstance(tokens[i + 1], int)
+               for i in range(1, len(tokens) - 1))
+
+
 def _is_pre(t) -> bool:
     return isinstance(t, str) and t in _PRE_WORDS
 
@@ -46,6 +53,10 @@ def compare_versions(a: str, b: str) -> int | None:
     ta, tb = tokenize(a), tokenize(b)
     if not ta or not tb:
         return None
+    # '8u401' vs '1.8.0' 처럼 표기 체계가 다르면 숫자만 비교해 오판할 수 있으므로 비교 불가
+    for x, y in ((ta, tb), (tb, ta)):
+        if _has_infix_alpha(x) and not any(isinstance(t, str) for t in y):
+            return None
     for x, y in zip(ta, tb):
         if isinstance(x, int) and isinstance(y, int):
             if x != y:

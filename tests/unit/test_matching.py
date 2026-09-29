@@ -29,7 +29,9 @@ ALIASES = load_aliases()
     ("17.9.3", "17.9.4a", -1), ("17.9.4a", "17.9.4", 1), ("17.9.4", "17.9.4a", -1),
     ("2.0-beta9", "2.0", -1), ("2.0-rc1", "2.0-beta9", 1), ("11.0.0-M1", "11.0.0", None),
     ("15.2(7)e13", "15.2(7)e8", 1), ("8.9", "9.8", -1), ("V2.4.49", "2.4.49", None),
-    ("19c", "19.3", None), ("2.4.x", "2.4.49", None), ("7.0 U3", "7.0", 1),
+    ("19c", "19.3", None), ("2.4.x", "2.4.49", None), ("7.0 U3", "7.0", None),
+    ("8u401", "1.8.0", None), ("1.8.0", "8u401", None),            # 표기 체계 다름 → 비교 불가
+    ("15.2(7)e13", "15.2(7)e8", 1),                                 # 양쪽 모두 벤더 표기 → 비교
 ])
 def test_compare_versions(a, b, expected):
     assert compare_versions(a, b) == expected
@@ -170,7 +172,7 @@ def test_other_product_not_matched():
 # ---------------- Level 2 후보 ----------------
 def test_java_version_rule():
     e = ALIASES.for_cpe("a", "oracle", "jdk")
-    assert apply_version_rules(e, "8u401")[:2] == ("1.8.0", "update_401")
+    assert apply_version_rules(e, "8u401")[:2] == ("1.8.0", "update401")
     assert apply_version_rules(e, "17.0.2")[:2] == ("17.0.2", None)
 
 
@@ -189,7 +191,7 @@ def test_candidate_score_is_rule_based():
 def test_candidate_alias_and_version_rule():
     cands = generate_candidates("oracle", "java_se", "8u401", ALIASES, set(), {})
     c = cands[0]
-    assert (c.vendor, c.product, c.version, c.update) == ("oracle", "jdk", "1.8.0", "update_401")
+    assert (c.vendor, c.product, c.version, c.update) == ("oracle", "jdk", "1.8.0", "update401")
     assert c.breakdown == {"vendor_exact": 30, "product_alias": 25, "alias_registered": 10}
     assert any("수집 데이터 없음" in n for n in c.notes)
 
@@ -208,3 +210,27 @@ def test_score_rules_documented_total():
     # 최대 점수 = vendor_exact + product_exact + version_decisive + alias_registered = 100
     assert SCORE_RULES["vendor_exact"] + SCORE_RULES["product_exact"] + \
         SCORE_RULES["version_decisive"] + SCORE_RULES["alias_registered"] == 100
+
+
+def test_na_criteria_version_is_disjoint_with_specific_version():
+    # 실제 NVD CVE-1999-0289: cpe:2.3:a:apache:http_server:-:... (버전 해당없음) — 구체 버전 자산과는 불일치
+    rows = [MatchRow(0, None, False, 0, "OR", False, 0, True, "cpe:2.3:a:apache:http_server:-:*:*:*:*:*:*:*")]
+    assert evaluate_cve("CVE-1999-0289", rows,
+                        _asset("cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*")).verdict == Verdict.NOT_AFFECTED
+    assert evaluate_cve("CVE-1999-0289", rows,
+                        _asset("cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*")).verdict == Verdict.REVIEW
+
+
+def test_rhel_and_java_version_rules_follow_nvd_notation():
+    assert apply_version_rules(ALIASES.for_cpe("o", "redhat", "enterprise_linux"), "8.10")[:2] == ("8.0", None)
+    c = generate_candidates("oracle", "java_se", "8u401", ALIASES, set(), {})[0]
+    assert c.proposed_cpe.startswith("cpe:2.3:a:oracle:jdk:1.8.0:update401:")
+
+
+def test_vendor_version_notation_not_scored_as_decisive():
+    # 'java_se' 제품 사전에 1.8.0 계열 조건만 있을 때 8u401 은 비교 불가 → 버전 점수 없음
+    rows = {("a", "oracle", "java_se"): [MatchRow(0, None, False, 0, "OR", False, 0, True,
+                                                  "cpe:2.3:a:oracle:java_se:1.8.0:*:*:*:*:*:*:*")]}
+    c = next(x for x in generate_candidates("oracle", "java_se", "8u401", ALIASES,
+                                            {("a", "oracle", "java_se")}, rows) if x.product == "java_se")
+    assert "version_decisive" not in c.breakdown

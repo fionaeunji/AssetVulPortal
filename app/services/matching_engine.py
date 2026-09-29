@@ -123,8 +123,11 @@ def eval_match_single(row: MatchRow, crit: CPE, a: AssetCpe) -> MatchEval:
         else:
             mt, detail = MatchType.CPE_ALL_VERSIONS, "모든 버전 해당 (criteria version='*', 범위 조건 없음)"
     elif cv == NA:
-        if av not in (ANY, NA):
-            return MatchEval(Tri.UNKNOWN, a.product_id, None, "criteria 버전 '-'(해당없음)과 자산 버전 비교 불가")
+        # CPE Name Matching(NISTIR 7696): criteria NA('-') 와 구체 버전은 DISJOINT(불일치)
+        if av == ANY or av == "":
+            return MatchEval(Tri.UNKNOWN, a.product_id, None, "자산 CPE에 버전이 없어 criteria '-' 와 비교 불가")
+        if av != NA:
+            return MatchEval(Tri.FALSE, a.product_id, None, f"criteria 버전 '-'(해당없음) ≠ 자산 버전 {av}")
         mt, detail = MatchType.CPE_EXACT, "버전 해당없음('-') 일치"
     else:
         if av in (ANY, NA, ""):

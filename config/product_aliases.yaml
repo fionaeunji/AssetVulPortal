@@ -10,7 +10,8 @@ products:
   - match: {vendor: [oracle, oracle_corporation], product: [java, java_se, jdk, java_development_kit, jre, java_runtime_environment]}
     cpe: {part: a, vendor: oracle, product: jdk}
     version_rules:
-      - {pattern: '(\d+)u(\d+)', version: '1.{1}.0', update: 'update_{2}'}      # 8u401 → 1.8.0 update_401
+      # NVD 실제 표기 확인(CVE-2023-21930, CVE-2024-20918): cpe:2.3:a:oracle:jdk:1.8.0:update361
+      - {pattern: '(\d+)u(\d+)', version: '1.{1}.0', update: 'update{2}'}       # 8u401 → 1.8.0 update401
 
   - match: {vendor: [apache, apache_software_foundation, the_apache_software_foundation], product: [tomcat, apache_tomcat]}
     cpe: {part: a, vendor: apache, product: tomcat}
@@ -25,6 +26,9 @@ products:
 
   - match: {vendor: [red_hat, redhat], product: [enterprise_linux, rhel, red_hat_enterprise_linux]}
     cpe: {part: o, vendor: redhat, product: enterprise_linux}
+    version_rules:
+      # NVD 실제 표기 확인(CVE-2024-6387): cpe:2.3:o:redhat:enterprise_linux:9.0 (주 버전.0)
+      - {pattern: '(\d+)\.\d+', version: '{1}.0'}                                # 8.10 → 8.0
 
   - match: {vendor: [oracle], product: [database, database_server, oracle_database]}
     cpe: {part: a, vendor: oracle, product: database_server}

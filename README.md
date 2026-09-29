@@ -116,9 +116,10 @@ python -m scripts.create_user --username admin --role admin
 ## 5. 실행방법
 
 ```cmd
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 브라우저에서 **http://127.0.0.1:8000** → 로그인. 종료는 `Ctrl+C`.
+`python -m` 형태로 실행하면 PATH 설정과 무관하게 동작합니다. (가상환경을 쓰는 경우 먼저 `.venv\Scripts\activate.bat`)
 
 | 메뉴 | 기능 |
 |---|---|
@@ -225,7 +226,7 @@ Match Confidence(Level 2) = 규칙 합산: Vendor 일치 30 / 별칭 20, Product
 ## 12. 테스트 실행방법
 
 ```cmd
-python -m pytest                     & rem 전체 (355건, 네트워크 불필요 — 녹화 Fixture 사용)
+python -m pytest                     & rem 전체 (363건, 네트워크 불필요 — 녹화 Fixture 사용)
 python -m pytest tests\security      & rem 보안 테스트만
 bandit -r app scripts                & rem 정적 분석
 pip-audit -r requirements.txt        & rem 의존성 취약점 (인터넷 필요)

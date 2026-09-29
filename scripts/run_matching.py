@@ -30,7 +30,8 @@ def main() -> int:
         sm = run_mapping_with_active_policy(s, actor="cli", policy_file=settings.policy_file)
     print(f"매핑 완료: 자산 {sm.assets}개, 신규 취약 매핑 {sm.vulnerable_new}건, 유효 매핑 {sm.vulnerable_total}건, "
           f"검토필요(L3) 신규 {sm.review_new}건, 후보(L2) 신규 {sm.candidates_new}건, "
-          f"재검증 표시 {sm.revalidation_flagged}건, 판정 Snapshot {sm.assessments_written}건")
+          f"재검증 표시 {sm.revalidation_flagged}건, 자동 종료된 검토 후보 {sm.review_closed}건, "
+          f"판정 Snapshot {sm.assessments_written}건")
     print("등급별:", dict(sm.by_severity))
     with session_scope() as s:
         q = (select(AssetVulnerability, Asset, AssetProduct, Vulnerability)

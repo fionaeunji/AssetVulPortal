@@ -103,7 +103,7 @@ def test_level2_candidates_created_with_rule_scores(env):
         was2 = by_asset["WAS-002"]
         assert was2.proposed_cpe == "cpe:2.3:a:apache:tomcat:8.5.50:*:*:*:*:*:*:*"
         assert was2.confidence == sum(was2.breakdown["rules"].values()) == 100   # 수집 후 점수 갱신
-        assert by_asset["APP-001"].proposed_cpe.startswith("cpe:2.3:a:oracle:jdk:1.8.0:update_401")
+        assert by_asset["APP-001"].proposed_cpe.startswith("cpe:2.3:a:oracle:jdk:1.8.0:update401")
         assert "MAIL-001" not in by_asset
 
 
@@ -267,3 +267,43 @@ def test_version_upgrade_flags_revalidation(env):
     with factory() as s:
         av = _av(s, "WEB-001", "CVE-2021-41773")
         assert av is not None and av.needs_revalidation     # 삭제하지 않고 재검증 필요 표시
+
+
+def test_stale_level3_auto_closed_and_reopened(env):
+    factory, settings = env
+    with factory() as s:
+        c = s.execute(select(MappingCandidate).where(MappingCandidate.level == 3,
+                                                     MappingCandidate.cve_id == "CVE-2021-21972")).scalar_one()
+        p = s.get(AssetProduct, c.asset_product_id)
+        p.cpe_normalized = "cpe:2.3:a:vmware:vcenter_server:6.7:update3q:*:*:*:*:*:*"   # 목록에 없는 update
+        s.commit()
+        sm = run_mapping_with_active_policy(s, actor="t", policy_file=settings.policy_file)
+        s.commit()
+        s.refresh(c)
+        assert sm.review_closed >= 1
+        assert c.status == CandidateStatus.REJECTED and c.decided_by == "system" and "자동 종료" in c.reason
+        p.cpe_normalized = "cpe:2.3:a:vmware:vcenter_server:6.7:*:*:*:*:*:*:*"          # 다시 불확실
+        s.commit()
+        run_mapping_with_active_policy(s, actor="t", policy_file=settings.policy_file)
+        s.commit()
+        s.refresh(c)
+        assert c.status == CandidateStatus.PENDING and c.decided_by is None
+
+
+def test_stale_level2_candidate_auto_closed(env):
+    factory, settings = env
+    with factory() as s:
+        good = s.execute(select(MappingCandidate).where(
+            MappingCandidate.level == 2, MappingCandidate.proposed_cpe.like("cpe:2.3:a:oracle:jdk:%"))).scalar_one()
+        # 과거 규칙으로 만들어진(더 이상 제안되지 않는) 후보를 가정
+        old = MappingCandidate(asset_product_id=good.asset_product_id, cve_id=None, level=2, confidence=85,
+                               proposed_cpe="cpe:2.3:a:oracle:jdk:1.8.0:update_401:*:*:*:*:*:*",
+                               breakdown={}, reason="old rule")
+        s.add(old)
+        s.commit()
+        run_mapping_with_active_policy(s, actor="t", policy_file=settings.policy_file)
+        s.commit()
+        s.refresh(old)
+        s.refresh(good)
+        assert old.status == CandidateStatus.REJECTED and old.decided_by == "system"
+        assert good.status == CandidateStatus.PENDING
