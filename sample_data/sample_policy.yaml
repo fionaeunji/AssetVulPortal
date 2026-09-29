@@ -1,0 +1,60 @@
+# 취약점 분류 정책 (코드 수정 없이 변경 가능)
+# 변경 절차: 이 파일 수정 → version 값 변경 → 관리자 화면 "정책 적용" 또는
+#            python -m scripts.apply_policy  (새 policy_versions 행 생성, 과거 판정은 보존)
+version: "2026.09-02"
+
+cvss:
+  # 등급 판정에 사용할 CVSS 점수 우선순위 (사용자 결정 Q3)
+  # "<CVSS 버전>:<Primary|Secondary>"  Primary = NVD 평가, Secondary = CNA 평가
+  source_priority:
+    - "3.1:Primary"
+    - "3.1:Secondary"
+    - "4.0:Primary"
+    - "4.0:Secondary"
+    - "3.0:Primary"
+    - "3.0:Secondary"
+
+epss:
+  # EPSS 미발행 CVE 처리 (사용자 결정 Q2)
+  #   pending: 판정보류("EPSS 대기") → 최초 EPSS 관측 시 그 값을 Initial EPSS로 확정 후 판정
+  #   zero   : EPSS 0으로 간주하여 즉시 판정
+  missing_behavior: pending
+
+deadline:
+  # 월 단위 기한 계산 (사용자 결정 Q1: 1.5개월 = 45일 고정)
+  #   fixed_days: months × days_per_month 일  (1개월=30일, 1.5개월=45일, 3개월=90일)
+  #   calendar  : 정수 개월은 달력 기준 + 소수 개월은 × days_per_month 일
+  month_mode: fixed_days
+  days_per_month: 30
+
+matching:
+  # NVD가 버전 범위 없이 '모든 버전'으로 등록한 CVE를 자동 확정하지 않고 '검토 필요(L3)'로 보낼 제품군
+  #   a=애플리케이션, o=OS, h=하드웨어   (사용자 결정 2026-09-29: OS만 검토 — 빌드별 패치 여부가 갈리므로)
+  review_all_versions_parts: ["o"]
+
+# 위에서부터 순서대로 평가하여 처음 만족하는 규칙을 적용 (긴급 → 우선 → 주의)
+rules:
+  - key: emergency
+    name: "긴급"
+    cvss_min: 9.0
+    epss_initial_min: 0.30
+    deadline:
+      perimeter: {hours: 72}
+      internal:  {months: 1.5}
+
+  - key: priority
+    name: "우선"
+    cvss_min: 9.0
+    epss_initial_min: 0.10
+    deadline:
+      perimeter: {days: 14}
+      internal:  {months: 1.5}
+
+  - key: caution
+    name: "주의"
+    cvss_min: 7.0
+    deadline:
+      perimeter: {months: 1}
+      internal:  {months: 3}
+
+default_name: "관리대상 아님"

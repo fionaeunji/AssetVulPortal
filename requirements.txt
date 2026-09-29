@@ -1,0 +1,17 @@
+# Runtime dependencies (사용 이유는 README "Dependency" 참고)
+fastapi==0.141.1
+uvicorn==0.54.0
+SQLAlchemy==2.1.1
+alembic==1.20.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+httpx==0.28.1
+openpyxl==3.1.5
+defusedxml==0.7.1
+APScheduler==3.11.3
+Jinja2==3.1.6
+python-multipart==0.0.32
+itsdangerous==2.2.0
+PyYAML==6.0.3
+tzdata==2026.4
+truststore==0.10.4

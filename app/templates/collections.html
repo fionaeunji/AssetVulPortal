@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}수집{% endblock %}
+{% block content %}
+<div class="bar"><h1>취약점 정보 수집</h1>
+{% if can_run %}
+  <form method="post" action="/collect" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button type="submit" {{ 'disabled' if busy or collector_mode != 'online' }}>지금 취약점 정보 수집</button>
+  </form>
+{% endif %}
+</div>
+<p class="muted">{% if busy %}수집이 실행 중입니다. 새로고침하여 진행 상태를 확인하세요.{% else %}자동 수집: 매일 09:00, 14:00 (Asia/Seoul){% endif %}</p>
+<table class="grid"><thead><tr><th>ID</th><th>Source</th><th>방식</th><th>요청자</th><th>시작</th><th>종료</th><th>상태</th><th>수집</th><th>신규</th><th>갱신</th><th>외부 목적지</th><th>오류</th></tr></thead><tbody>
+{% for h in rows %}<tr><td>{{ h.id }}</td><td>{{ h.source.value }}</td><td>{{ h.trigger.value }}</td><td>{{ h.requested_by }}</td>
+<td>{{ h.started_at|kst }}</td><td>{{ h.finished_at|kst }}</td><td><span class="badge st-{{ h.status.value }}">{{ h.status.value }}</span></td>
+<td class="num">{{ h.items_fetched }}</td><td class="num">{{ h.items_inserted }}</td><td class="num">{{ h.items_updated }}</td>
+<td class="small">{% for e in h.endpoints_called or [] %}<div>{{ e.host }}{{ e.path }} ({{ e.requests }})</div>{% endfor %}</td>
+<td class="small">{{ h.error_summary or '' }}</td></tr>
+{% else %}<tr><td colspan="12" class="muted">수집 이력 없음</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

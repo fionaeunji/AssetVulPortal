@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}감사로그{% endblock %}
+{% block content %}
+<div class="bar"><h1>감사로그</h1>
+  <form method="get" action="/admin/audit" class="inline">
+    <select name="action"><option value="">전체</option>{% for a in actions %}<option {{ 'selected' if a == action }}>{{ a }}</option>{% endfor %}</select>
+    <button>필터</button> <a href="/admin/audit?verify=1">무결성(Hash chain) 검증</a>
+  </form>
+</div>
+{% if verify %}<div class="flash {{ 'flash-ok' if verify.ok else 'flash-error' }}">{% if verify.ok %}무결성 검증 성공 — {{ verify.checked }}건{% else %}위변조 탐지 — ID {{ verify.broken_at_id }} 에서 체인 불일치{% endif %}</div>{% endif %}
+<p class="muted">감사로그는 수정·삭제할 수 없습니다 (DB Trigger + Hash chain).</p>
+<table class="grid"><thead><tr><th>ID</th><th>일시</th><th>사용자</th><th>역할</th><th>이벤트</th><th>대상</th><th>결과</th><th>IP</th><th>변경 전</th><th>변경 후</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.id }}</td><td>{{ r.occurred_at|kst('%Y-%m-%d %H:%M:%S') }}</td><td>{{ r.actor }}</td><td>{{ r.actor_role or '' }}</td><td>{{ r.action }}</td>
+<td>{{ r.target_type or '' }} {{ r.target_id or '' }}</td><td>{{ r.result }}</td><td>{{ r.client_ip or '' }}</td>
+<td class="small json">{{ r.before|tojson if r.before else '' }}</td><td class="small json">{{ r.after|tojson if r.after else '' }}</td></tr>{% endfor %}
+</tbody></table>
+<nav class="pager">{% if page > 1 %}<a href="/admin/audit?page={{ page - 1 }}{{ '&action=' ~ action if action }}">이전</a>{% endif %}<span>{{ page }}</span>{% if rows|length == 100 %}<a href="/admin/audit?page={{ page + 1 }}{{ '&action=' ~ action if action }}">다음</a>{% endif %}</nav>
+{% endblock %}

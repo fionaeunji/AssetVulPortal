@@ -1,0 +1,12 @@
+{% macro sev_badge(av) -%}
+{%- if av.assessment_state.value == 'epss_pending' -%}<span class="badge sev-wait">EPSS 대기</span>
+{%- elif av.severity == '긴급' -%}<span class="badge sev-e">긴급</span>
+{%- elif av.severity == '우선' -%}<span class="badge sev-p">우선</span>
+{%- elif av.severity == '주의' -%}<span class="badge sev-c">주의</span>
+{%- else -%}<span class="badge sev-n">{{ av.severity or '-' }}</span>{%- endif -%}
+{%- endmacro %}
+{% macro remain(av, now) -%}
+{%- set r = remaining(av.due_at, now) -%}
+{%- if av.status.value in ['조치완료','예외처리','오탐'] -%}<span class="muted">종결</span>
+{%- else -%}<span class="{{ 'overdue' if r.overdue else '' }}">{{ r.text }}</span>{%- endif -%}
+{%- endmacro %}

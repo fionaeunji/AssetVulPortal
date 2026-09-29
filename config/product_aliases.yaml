@@ -1,0 +1,52 @@
+# 제품 별칭 사전 (Level 2 후보 매칭용) — 코드 수정 없이 추가/변경 가능
+#
+# match   : 자산관리대장의 정규화된 Vendor/Product (소문자, 공백→'_')
+# cpe     : NVD CPE 의 part / vendor / product
+# version_rules : 벤더 고유 버전 표기를 CPE version/update 로 변환하는 규칙 (위에서부터 첫 일치 적용)
+#                 pattern 은 전체 일치(fullmatch). {1},{2} 는 캡처 그룹.
+#
+# 여기에 있다고 자동 확정되지 않는다. Level 2 후보로 제시되고 사용자가 [매핑 승인]해야 적용된다.
+products:
+  - match: {vendor: [oracle, oracle_corporation], product: [java, java_se, jdk, java_development_kit, jre, java_runtime_environment]}
+    cpe: {part: a, vendor: oracle, product: jdk}
+    version_rules:
+      # NVD 실제 표기 확인(CVE-2023-21930, CVE-2024-20918): cpe:2.3:a:oracle:jdk:1.8.0:update361
+      - {pattern: '(\d+)u(\d+)', version: '1.{1}.0', update: 'update{2}'}       # 8u401 → 1.8.0 update401
+
+  - match: {vendor: [apache, apache_software_foundation, the_apache_software_foundation], product: [tomcat, apache_tomcat]}
+    cpe: {part: a, vendor: apache, product: tomcat}
+
+  - match: {vendor: [apache, apache_software_foundation], product: [http_server, httpd, apache_http_server, apache_httpd]}
+    cpe: {part: a, vendor: apache, product: http_server}
+
+  - match: {vendor: [vmware, broadcom], product: [esxi, vmware_esxi, vsphere_esxi]}
+    cpe: {part: o, vendor: vmware, product: esxi}
+    version_rules:
+      - {pattern: '(\d+\.\d+)\s*u(\d+[a-z]?)', version: '{1}', update: 'update{2}'}  # 7.0 U3 → 7.0 update3
+
+  - match: {vendor: [red_hat, redhat], product: [enterprise_linux, rhel, red_hat_enterprise_linux]}
+    cpe: {part: o, vendor: redhat, product: enterprise_linux}
+    version_rules:
+      # NVD 실제 표기 확인(CVE-2024-6387): cpe:2.3:o:redhat:enterprise_linux:9.0 (주 버전.0)
+      - {pattern: '(\d+)\.\d+', version: '{1}.0'}                                # 8.10 → 8.0
+
+  - match: {vendor: [oracle], product: [database, database_server, oracle_database]}
+    cpe: {part: a, vendor: oracle, product: database_server}
+
+  - match: {vendor: [canonical, ubuntu], product: [ubuntu, ubuntu_linux]}
+    cpe: {part: o, vendor: canonical, product: ubuntu_linux}
+
+  - match: {vendor: [microsoft], product: [windows_server_2022]}
+    cpe: {part: o, vendor: microsoft, product: windows_server_2022}
+
+  - match: {vendor: [fortinet], product: [fortios, fortigate]}
+    cpe: {part: o, vendor: fortinet, product: fortios}
+
+  - match: {vendor: [cisco], product: [ios_xe, iosxe]}
+    cpe: {part: o, vendor: cisco, product: ios_xe}
+
+  - match: {vendor: [google], product: [chrome, google_chrome]}
+    cpe: {part: a, vendor: google, product: chrome}
+
+  - match: {vendor: [postgresql, postgresql_global_development_group], product: [postgresql, postgres]}
+    cpe: {part: a, vendor: postgresql, product: postgresql}

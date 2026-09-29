@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sev_badge, remain %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="kpis">
+  <a class="kpi" href="/assets"><div class="n">{{ kpi.total_assets }}</div><div class="l">전체 자산</div></a>
+  <div class="kpi"><div class="n">{{ kpi.vulnerable_assets }}</div><div class="l">취약 자산</div></div>
+  {% for name in rule_names %}
+  <a class="kpi kpi-{{ loop.index }}" href="/?sev={{ name|urlencode }}"><div class="n">{{ kpi.by_severity[name] }}</div><div class="l">{{ name }} 취약점</div></a>
+  {% endfor %}
+  <a class="kpi kpi-wait" href="/?sev={{ pending_label|urlencode }}"><div class="n">{{ kpi.epss_pending }}</div><div class="l">EPSS 대기</div></a>
+  <a class="kpi kpi-over" href="/?overdue=1"><div class="n">{{ kpi.overdue }}</div><div class="l">조치기한 초과</div></a>
+</section>
+
+<form class="filters" method="get" action="/">
+  <input name="q" value="{{ f.q or '' }}" maxlength="100" placeholder="CVE / IP / Hostname / 제품 / 담당자">
+  {% for name in rule_names + [pending_label] %}
+  <label class="chk"><input type="checkbox" name="sev" value="{{ name }}" {{ 'checked' if name in f.severities }}> {{ name }}</label>
+  {% endfor %}
+  <label class="chk"><input type="checkbox" name="kev" value="1" {{ 'checked' if f.kev }}> KEV</label>
+  <select name="zone"><option value="">자산구분 전체</option>{% for z in zones %}<option {{ 'selected' if f.zone and f.zone.value == z }}>{{ z }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" name="overdue" value="1" {{ 'checked' if f.overdue }}> 조치기한 초과</label>
+  <select name="owner"><option value="">담당자 전체</option>{% for o in owners %}<option {{ 'selected' if f.owner == o }}>{{ o }}</option>{% endfor %}</select>
+  <select name="status"><option value="">상태 전체</option>{% for s in statuses %}<option {{ 'selected' if f.status and f.status.value == s }}>{{ s }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" name="closed" value="1" {{ 'checked' if f.include_closed }}> 종결 포함</label>
+  <label class="chk"><input type="checkbox" name="all" value="1" {{ 'checked' if f.include_unmanaged }}> 관리대상 아님 포함</label>
+  <label class="chk"><input type="checkbox" name="reval" value="1" {{ 'checked' if f.revalidation }}> 재검증 필요</label>
+  <button type="submit">검색</button> <a href="/">초기화</a>
+</form>
+
+<div class="bar"><p class="muted">{{ total }}건 · 정책 {{ policy_version }}</p>
+  <a class="button" href="/export.xlsx?{{ qs() }}">Excel 다운로드 (현재 조건)</a></div>
+<div class="tablewrap">
+<table class="grid">
+<thead><tr>
+  <th>등급</th><th>CVE</th><th>자산명</th><th>IP</th><th>제품</th><th>Version</th><th>CVSS</th>
+  <th>Initial EPSS</th><th>Current EPSS</th><th>KEV</th><th>자산구분</th><th>중요도</th><th>담당자</th>
+  <th>탐지일</th><th>조치기한</th><th>남은시간</th><th>상태</th>
+</tr></thead>
+<tbody>
+{% for av, a, p, v in rows %}
+<tr>
+  <td>{{ sev_badge(av) }}</td>
+  <td class="nw"><a href="/vulns/{{ av.id }}">{{ v.cve_id }}</a></td>
+  <td><a href="/assets/{{ a.id }}">{{ a.name }}</a><div class="muted small">{{ a.asset_code }}</div></td>
+  <td class="nw">{{ a.ip or '-' }}</td>
+  <td>{{ p.product_raw or p.product_norm }}</td>
+  <td>{{ p.version_norm or '-' }}</td>
+  <td class="num">{{ '%.1f'|format(v.cvss_score) if v.cvss_score is not none else '-' }}</td>
+  <td class="num">{{ v.epss_initial|epss }}</td>
+  <td class="num">{{ v.epss_current|epss }}</td>
+  <td>{% if v.kev %}<span class="badge kev">KEV</span>{% endif %}</td>
+  <td>{{ a.zone.value }}</td>
+  <td>{{ a.criticality.value }}</td>
+  <td class="nw">{{ av.owner or '-' }}</td>
+  <td class="nw">{{ av.detected_at|kst('%Y-%m-%d') }}</td>
+  <td class="nw">{{ av.due_at|kst }}</td>
+  <td class="nw">{{ remain(av, now) }}</td>
+  <td>{{ av.status.value }}{% if av.needs_revalidation %} <span class="badge reval">재검증</span>{% endif %}</td>
+</tr>
+{% else %}
+<tr><td colspan="17" class="muted">조건에 맞는 취약점이 없습니다.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% set pages = ((total + page_size - 1) // page_size) %}
+{% if pages > 1 %}
+<nav class="pager">
+  {% if f.page > 1 %}<a href="/?{{ qs(page=f.page - 1) }}">이전</a>{% endif %}
+  <span>{{ f.page }} / {{ pages }}</span>
+  {% if f.page < pages %}<a href="/?{{ qs(page=f.page + 1) }}">다음</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

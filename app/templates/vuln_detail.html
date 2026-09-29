@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_macros.html" import sev_badge, remain %}
+{% block title %}{{ v.cve_id }} · {{ asset.name }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ asset.name }} <span class="muted">{{ asset.asset_code }}</span></h1>
+  <dl class="kv">
+    <dt>중요도</dt><dd>{{ asset.criticality.value }}</dd>
+    <dt>구분</dt><dd>{{ asset.zone.value }}</dd>
+    <dt>IP</dt><dd>{{ asset.ip or '-' }}</dd>
+    <dt>담당자</dt><dd>{{ av.owner or '-' }}{% if av.owner_override %} <span class="muted">(개별 지정)</span>{% endif %}</dd>
+    <dt>부서</dt><dd>{{ asset.department or '-' }}</dd>
+    <dt>제품</dt><dd>{{ product.vendor_raw or '' }} {{ product.product_raw or product.product_norm }} {{ product.version_raw or product.version_norm or '' }}</dd>
+    <dt>자산 CPE</dt><dd><code>{{ product.cpe_normalized or '-' }}</code> {% if product.cpe_source == 'mapping' %}<span class="badge">승인 매핑</span>{% endif %}</dd>
+  </dl>
+</section>
+
+<div class="cols">
+<section class="card">
+  <h2>{{ v.cve_id }} {% if v.kev %}<span class="badge kev">KEV</span>{% endif %}</h2>
+  <h3 class="sub">SOURCE DATA</h3>
+  <dl class="kv">
+    <dt>CVSS</dt><dd>{{ '%.1f'|format(v.cvss_score) if v.cvss_score is not none else '-' }} <span class="muted">v{{ v.cvss_version or '-' }} · {{ v.cvss_source or '-' }} {{ v.cvss_type or '' }}</span></dd>
+    <dt>CVSS Vector</dt><dd><code>{{ v.cvss_vector or '-' }}</code></dd>
+    <dt>Initial EPSS</dt><dd>{{ v.epss_initial|epss }} <span class="muted">score date {{ v.epss_initial_date or '-' }} · 최초 관측 {{ v.epss_first_seen_at|kst }}</span></dd>
+    <dt>Current EPSS</dt><dd>{{ v.epss_current|epss }} <span class="muted">score date {{ v.epss_current_date or '-' }}</span></dd>
+    <dt>KEV</dt><dd>{% if v.kev %}예 ({{ v.kev_source }}, 등재 {{ v.kev_date_added or '-' }}, CISA 기한 {{ v.kev_due_date or '-' }}){% else %}아니오{% endif %}</dd>
+    <dt>게시 / 수정</dt><dd>{{ v.published_at|kst }} / {{ v.last_modified_at|kst }} <span class="muted">({{ v.nvd_vuln_status or '-' }})</span></dd>
+    <dt>설명</dt><dd class="desc">{{ v.description or '-' }}</dd>
+  </dl>
+</section>
+<section class="card">
+  <h2>판정</h2>
+  <h3 class="sub">CALCULATED DATA</h3>
+  <dl class="kv">
+    <dt>등급</dt><dd>{{ sev_badge(av) }}</dd>
+    <dt>탐지일</dt><dd>{{ av.detected_at|kst }}</dd>
+    <dt>조치기한</dt><dd>{{ av.due_at|kst }} <span class="muted">(최초 {{ av.initial_due_at|kst }})</span></dd>
+    <dt>남은시간</dt><dd>{{ remain(av, now) }}</dd>
+    <dt>상태</dt><dd>{{ av.status.value }}{% if av.needs_revalidation %} <span class="badge reval">재검증 필요</span>{% endif %}</dd>
+    <dt>매핑방식</dt><dd>{{ av.match_type.value }}{% if av.match_confidence is not none %} · Confidence {{ av.match_confidence }}%{% endif %}{% if av.mapping_approved_by %} · 승인 {{ av.mapping_approved_by }}{% endif %}</dd>
+  </dl>
+  <h3 class="sub">매핑근거</h3>
+  <dl class="kv small">
+    {% set labels = {'configuration': 'NVD 구성 번호', 'config_operator': '구성 연산자', 'criteria': '일치한 NVD CPE 조건',
+      'match_criteria_range': '버전 범위', 'rule': '판정 규칙', 'platform_conditions': '플랫폼 조건', 'level': '매칭 Level',
+      'asset_cpe': '자산 CPE', 'cpe_source': 'CPE 출처', 'mapping_approved_by': '매핑 승인자', 'mapping_approved_at': '매핑 승인일시',
+      'manual': '수동 확정', 'approved_by': '승인자', 'review_reason': '검토 사유', 'comment': '승인 의견'} %}
+    {% for k, val in (av.match_evidence or {}).items() %}{% if val is not none %}
+    <dt>{{ labels.get(k, k) }}</dt><dd>{% if val is iterable and val is not string %}{% for x in val %}<div>{{ x }}</div>{% endfor %}{% else %}{{ val }}{% endif %}</dd>
+    {% endif %}{% endfor %}
+  </dl>
+</section>
+</div>
+
+{% if can_edit %}
+<div class="cols">
+<section class="card">
+  <h2>상태 변경</h2>
+  <form method="post" action="/vulns/{{ av.id }}/status">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <select name="status">{% for s in statuses %}<option {{ 'selected' if s == av.status.value }}>{{ s }}</option>{% endfor %}</select>
+    <textarea name="comment" maxlength="1000" placeholder="사유 (예외처리·오탐은 필수)"></textarea>
+    <button type="submit">변경</button>
+  </form>
+</section>
+<section class="card">
+  <h2>담당자 지정</h2>
+  <form method="post" action="/vulns/{{ av.id }}/owner">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input name="owner" maxlength="64" value="{{ av.owner or '' }}" required>
+    <button type="submit">지정</button>
+  </form>
+</section>
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>상태 이력</h2>
+  <table class="grid"><thead><tr><th>일시</th><th>변경 전</th><th>변경 후</th><th>변경자</th><th>사유</th></tr></thead><tbody>
+  {% for h in history %}<tr><td>{{ h.changed_at|kst }}</td><td>{{ h.from_status }}</td><td>{{ h.to_status }}</td><td>{{ h.changed_by }}</td><td>{{ h.comment or '' }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">변경 이력 없음</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card">
+  <h2>판정 이력 (정책 버전별)</h2>
+  <table class="grid"><thead><tr><th>판정일시</th><th>정책</th><th>등급</th><th>CVSS</th><th>Initial EPSS</th><th>Current EPSS</th><th>기한</th><th>계산방법</th><th>사유</th></tr></thead><tbody>
+  {% for s, ver in assessments %}<tr><td>{{ s.assessed_at|kst }}</td><td>{{ ver }}</td><td>{{ s.severity or 'EPSS 대기' }}</td><td>{{ s.cvss_score_used if s.cvss_score_used is not none else '-' }} <span class="muted small">{{ s.cvss_source_used or '' }}</span></td><td>{{ s.epss_initial_used|epss }}</td><td>{{ s.epss_current_at_assessment|epss }}</td><td>{{ s.due_at_computed|kst }}</td><td class="small">{{ s.calc_method or '-' }}</td><td class="small">{{ s.reason }}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endblock %}
