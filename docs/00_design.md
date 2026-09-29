@@ -505,9 +505,10 @@ AssetVulPortal/
 | Q2 | EPSS 미발행 CVE | **판정보류 후 재판정** | `epss.missing_behavior: pending` → 상태 표시 "EPSS 대기", 최초 EPSS 관측 시 Initial EPSS 확정 후 판정. 기한 기산점은 탐지일 |
 | Q3 | CVSS 우선순위 | **v3.1 NVD → CNA → v4.0** | `cvss.source_priority: [v31_primary, v31_secondary, v40_primary, v40_secondary, v30_primary, v30_secondary]`, 사용된 버전·출처 기록 |
 | Q4 | 수집 범위 | **자산 기반 + 증분** | 자산 CPE별 `cpeName`/`virtualMatchString` 조회 + `lastModStartDate/EndDate` 증분 |
+| Q5 | NVD '모든 버전'(범위 없음) 등록 CVE (2026-09-29, Windows 실데이터 검토 후) | **OS만 검토 필요** | `matching.review_all_versions_parts: ["o"]` — OS(part=o)는 L3 검토, 애플리케이션은 NVD대로 자동 확정. 플랫폼(비취약) 조건에는 미적용 |
+
 
 > 가정: Q1의 "45일 고정"을 1개월·3개월에도 동일한 30일 환산으로 적용했습니다. 정수 개월만 달력 기준으로 하려면 `month_mode` 설정 변경으로 처리합니다(코드 수정 불필요).
-| Q5 | NVD '모든 버전'(범위 없음) 등록 CVE (2026-09-29, Windows 실데이터 검토 후) | **OS만 검토 필요** | `matching.review_all_versions_parts: ["o"]` — OS(part=o)는 L3 검토, 애플리케이션은 NVD대로 자동 확정. 플랫폼(비취약) 조건에는 미적용 |
 
 ### Windows 실데이터 검토로 반영한 매칭 규칙 (2026-09-29)
 
