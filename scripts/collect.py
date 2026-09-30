@@ -72,7 +72,11 @@ def main() -> int:
         print("호출 목적지:", json.dumps(rec.as_list(), ensure_ascii=False))
         return 0
 
-    from app.services.vulnerability_collector import CollectionBusy, run_online_collection
+    from app.services.vulnerability_collector import (
+        CollectionBusy,
+        CollectionNotAllowed,
+        run_online_collection,
+    )
 
     try:
         out = run_online_collection(CollectionTrigger.MANUAL, actor="cli",
@@ -80,6 +84,11 @@ def main() -> int:
     except CollectionBusy:
         print("이미 수집이 실행 중입니다.", file=sys.stderr)
         return 1
+    except CollectionNotAllowed:
+        print("COLLECTOR_MODE=offline 에서는 외부 수집을 하지 않습니다. "
+              "외부망 Collector에서 만든 Bundle을 data\\bundles\\inbox 에 넣거나 "
+              "`python -m scripts.import_bundle <파일>` 을 사용하세요.", file=sys.stderr)
+        return 2
     print(f"수집 종료: id={out.collection_id} status={out.status.value}")
     print(json.dumps(out.summary, ensure_ascii=False, indent=2, default=str))
     return 0

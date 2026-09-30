@@ -31,7 +31,7 @@ flowchart LR
 인터넷 PC(내부 VDI와 **같은 Windows·Python 버전**)에서:
 
 ```cmd
-git clone -b claude/vulnerability-management-poc-qthd3d https://github.com/fionaeunji/AssetVulPortal.git
+git clone https://github.com/fionaeunji/AssetVulPortal.git
 cd AssetVulPortal
 py -3.12 -m pip download -r requirements.txt -d wheels
 py -3.12 -m pip install pip-audit

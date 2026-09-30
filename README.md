@@ -68,7 +68,7 @@ flowchart LR
 
 ```cmd
 cd %USERPROFILE%\Documents
-git clone -b claude/vulnerability-management-poc-qthd3d https://github.com/fionaeunji/AssetVulPortal.git
+git clone https://github.com/fionaeunji/AssetVulPortal.git
 cd AssetVulPortal
 py -3.12 -m venv .venv
 .venv\Scripts\activate.bat
