@@ -6,6 +6,7 @@
 
 [VDI 분리 운영 / 외부망 Collector] DB 없이 대상 파일로 수집 → Bundle 파일 생성:
     python -m scripts.collect --targets-file targets.json --out-dir .\\bundles
+    python -m scripts.collect --targets-file targets.json --out-dir .\\bundles --split   (제품별 파일)
     (targets.json 은 내부 Portal 에서 `python -m scripts.export_targets` 로 생성)
 """
 from __future__ import annotations
@@ -37,6 +38,8 @@ def main() -> int:
     ap.add_argument("--full", action="store_true", help="증분 커서를 무시하고 전체 이력 재조회")
     ap.add_argument("--targets-file", type=Path, help="(외부망 Collector) 대상 JSON 파일")
     ap.add_argument("--out-dir", type=Path, help="(외부망 Collector) Bundle 출력 디렉터리")
+    ap.add_argument("--split", action="store_true",
+                    help="(외부망 Collector) 제품별로 Bundle 파일을 나눠 생성 (반입 용량 제한·최초 대량 수집 시)")
     args = ap.parse_args()
     from app.config.logging import configure_logging
     from app.config.settings import get_settings as _gs
@@ -46,7 +49,7 @@ def main() -> int:
     settings = get_settings()
 
     if args.targets_file:
-        from app.services.bundle import write_bundle
+        from app.services.bundle import MAX_BUNDLE_BYTES, write_bundle
         from app.services.collector import NvdTarget, collect
         from app.services.http_client import DestinationRecorder, build_client
 
@@ -57,18 +60,25 @@ def main() -> int:
         targets += [NvdTarget(k, None) for k in args.product]
         known = set(data.get("known_cve_ids", []))
         rec = DestinationRecorder()
+        # --split: 제품마다 별도 Bundle. 보유 CVE의 EPSS 갱신은 첫 Bundle에만 포함(중복 방지)
+        groups = [[t] for t in targets] if args.split else [targets]
         with build_client(rec, trust_store=settings.tls_trust_store) as http:
-            bundle = collect(
-                targets, known, http=http,
-                nvd_api_key=settings.nvd_api_key.get_secret_value() if settings.nvd_api_key else None,
-                epss_csv_threshold=settings.epss_csv_threshold,
-                hmac_key=settings.bundle_hmac_key.get_secret_value() if settings.bundle_hmac_key else None,
-                collector_name="external-cli",
-            )
-        path = write_bundle(bundle, args.out_dir or settings.bundle_dir)
-        print(f"Bundle 생성: {path}")
-        for s in bundle.manifest.sources:
-            print(f"  {s.source:5s} {s.status:8s} count={s.count} {s.error or ''}")
+            for i, group in enumerate(groups):
+                bundle = collect(
+                    group, known if i == 0 else set(), http=http,
+                    nvd_api_key=settings.nvd_api_key.get_secret_value() if settings.nvd_api_key else None,
+                    epss_csv_threshold=settings.epss_csv_threshold,
+                    hmac_key=settings.bundle_hmac_key.get_secret_value() if settings.bundle_hmac_key else None,
+                    collector_name="external-cli",
+                )
+                path = write_bundle(bundle, args.out_dir or settings.bundle_dir)
+                size_mb = path.stat().st_size / 1024 / 1024
+                print(f"Bundle 생성: {path} ({size_mb:.1f} MB)")
+                if path.stat().st_size > MAX_BUNDLE_BYTES:
+                    print(f"  경고: 반입 상한 {MAX_BUNDLE_BYTES // 1024 // 1024} MB 초과 — --split 으로 다시 수집하세요.",
+                          file=sys.stderr)
+                for s in bundle.manifest.sources:
+                    print(f"  {s.source:5s} {s.status:8s} count={s.count} {s.error or ''}")
         print("호출 목적지:", json.dumps(rec.as_list(), ensure_ascii=False))
         return 0
 

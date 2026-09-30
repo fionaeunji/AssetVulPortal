@@ -73,13 +73,13 @@ python -m app.scheduler                                 (별도 창 / Windows �
 | 단계 | 위치 | 명령 |
 |---|---|---|
 | ① 수집 대상 반출 (자산 변경 시) | VDI | `python -m scripts.export_targets --out targets.json` |
-| ② 수집 | Collector PC | `python -m scripts.collect --targets-file targets.json --out-dir out` |
+| ② 수집 | Collector PC | `python -m scripts.collect --targets-file targets.json --out-dir out` (최초 대량 수집·반입 용량 제한 시 `--split`: 제품별 파일) |
 | ③ 반입 | 망연계 | `out\bundle_*.json` → VDI `data\bundles\inbox\` |
 | ④ Import·매핑·판정 | VDI | Scheduler(09:00/14:00)가 자동 처리 → `processed\` / `failed\` 이동. 수동: `python -m scripts.import_bundle <파일>` |
 | ⑤ 확인 | VDI 웹 | 수집 메뉴 이력(source=BUNDLE), Dashboard |
 
 - 증분 커서는 **Portal DB가 관리**합니다. Import 성공 시에만 커서가 전진하므로, Bundle이 유실·실패하면 다음 `targets.json` 이 자동으로 같은 구간을 다시 요청합니다.
-- 처음 반입하는 제품은 전체 이력을 수집하므로 Bundle이 큽니다(PoC 실측: 샘플 자산 기준 약 1.6만 CVE). 반입 용량 제한이 있으면 `targets.json` 의 `targets` 항목을 여러 파일로 나눠 수집하면 됩니다.
+- 처음 반입하는 제품은 전체 이력을 수집하므로 Bundle이 큽니다(PoC 실측: 샘플 자산 기준 약 1.6만 CVE). Bundle 1개 반입 상한은 100MB입니다. 최초 수집이나 반입 용량 제한이 있으면 `--split` 으로 제품별 Bundle을 만드세요(보유 CVE의 EPSS 갱신은 첫 파일에만 포함). 상한을 넘으면 수집 시 경고가 출력됩니다.
 - 반입 파일은 Import 전에 스키마·SHA-256·HMAC 검증을 통과해야 하며, 실패 파일은 `failed\` 로 이동하고 감사로그·수집이력에 남습니다(기존 데이터 변경 없음).
 
 ## 5. PostgreSQL 전환
@@ -104,3 +104,70 @@ python -m app.scheduler                                 (별도 창 / Windows �
 | 파일 권한 | `data\` 폴더는 서비스 계정만 접근 |
 | 정책 | `config\policy.yaml` 변경은 관리자 화면 적용(버전 변경 필수) — 변경 이력은 `policy_versions`·감사로그 |
 | 취약점 | 반입 전 `pip-audit`, 정기적 의존성 갱신 |
+
+## 7. 단일 Windows PC 모의 시험 (VDI 이전 전 사전 검증)
+
+인터넷 PC 한 대에서 폴더 두 개로 Collector(외부망)와 Portal(VDI)을 분리해 반출 → 수집 → 반입 → Import 전 과정을 시험합니다.
+
+| 폴더 | 역할 | `.env` |
+|---|---|---|
+| 기존 `AssetVulPortal` | Collector (외부망) | `COLLECTOR_MODE=online`, `BUNDLE_HMAC_KEY=<K>` |
+| `C:\VDI_TEST\AssetVulPortal` | Portal (VDI) | `COLLECTOR_MODE=offline`, `BUNDLE_HMAC_KEY=<K>`(동일), 별도 `APP_SECRET_KEY` |
+
+① Collector 폴더 — 최신화, HMAC 키 생성, 설치 파일 준비, VDI 폴더 복사
+```cmd
+git checkout main
+git pull
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+  → 출력값을 .env 의 BUNDLE_HMAC_KEY= 에 입력 (VDI .env 에도 같은 값)
+python -m pip download -r requirements.txt -d wheels
+robocopy . C:\VDI_TEST\AssetVulPortal /E /XD .git .venv data __pycache__ .pytest_cache /XF .env
+```
+
+② (선택) 인터넷 연결 해제 — VDI 단계가 인터넷 없이 되는지 확인
+
+③ VDI 폴더 — 오프라인 설치·초기화·수집 대상 반출
+```cmd
+cd /d C:\VDI_TEST\AssetVulPortal
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install --no-index --find-links wheels -r requirements.txt
+copy .env.example .env
+  → .env 편집: APP_SECRET_KEY=<새 난수>, COLLECTOR_MODE=offline, BUNDLE_HMAC_KEY=<K>
+python -m scripts.init_db
+python -m scripts.create_user --username admin --role admin
+python -m scripts.import_assets sample_data\sample_assets.xlsx
+python -m scripts.collect
+  → "COLLECTOR_MODE=offline 에서는 외부 수집을 하지 않습니다" 확인
+python -m scripts.export_targets --out C:\VDI_TEST\targets.json
+```
+
+④ Collector 폴더 (인터넷 연결 복구) — 수집 → Bundle
+```cmd
+python -m scripts.collect --targets-file C:\VDI_TEST\targets.json --out-dir C:\VDI_TEST\out --split
+```
+
+⑤ 반입 (인터넷 해제 가능)
+```cmd
+mkdir C:\VDI_TEST\AssetVulPortal\data\bundles\inbox
+copy C:\VDI_TEST\out\*.json C:\VDI_TEST\AssetVulPortal\data\bundles\inbox\
+cd /d C:\VDI_TEST\AssetVulPortal
+.venv\Scripts\activate.bat
+python -m app.scheduler --run-once
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+⑥ 확인 항목
+
+| # | 확인 | 기대 결과 |
+|---|---|---|
+| 1 | 오프라인 설치 | `pip install --no-index` 성공 |
+| 2 | 외부 수집 차단 | CLI 안내 메시지, 웹 수집 메뉴 [지금 수집] 버튼 비활성 |
+| 3 | `targets.json` 내용 | 제품 키·CVE ID만 있고 자산명·IP·담당자 없음 |
+| 4 | Bundle Import | `--run-once` 결과 모두 `success`, 파일은 `data\bundles\processed\` 로 이동 |
+| 5 | 결과 일치 | Dashboard 건수가 온라인 폴더 결과와 같은 수준(같은 정책 버전 기준) |
+| 6 | 수집 이력 | http://127.0.0.1:8001 수집 메뉴 source=`BUNDLE`, 외부 호출 목적지 없음 |
+| 7 | 위변조 차단 | `processed` 의 Bundle 1개를 메모장으로 설명 한 글자 수정 → `inbox` 에 복사 → `--run-once` → `failed:BundleError`, `data\bundles\failed\` 이동, 기존 데이터 변화 없음 |
+| 8 | 증분 | ③의 `export_targets` 재실행 → `last_mod_start` 가 채워짐 → ④ 재수집 시 작은 Bundle |
+
+개발 컨테이너 모의 결과(2026-09-30, 가짜 외부 서버): 단일 Bundle과 `--split` 13개 파일 Import 결과 동일(CVE 17, 취약 자산 매핑 16, 제품 커서 13), 변조 Bundle·다른 HMAC 키 Bundle 모두 `failed` 이동, VDI 수집 이력의 외부 호출 목적지 0건.
