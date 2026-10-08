@@ -68,7 +68,7 @@ flowchart LR
 
 ```cmd
 cd %USERPROFILE%\Documents
-git clone -b claude/vulnerability-management-poc-qthd3d https://github.com/fionaeunji/AssetVulPortal.git
+git clone https://github.com/fionaeunji/AssetVulPortal.git
 cd AssetVulPortal
 py -3.12 -m venv .venv
 .venv\Scripts\activate.bat
@@ -229,7 +229,7 @@ Match Confidence(Level 2) = 규칙 합산: Vendor 일치 30 / 별칭 20, Product
 ## 12. 테스트 실행방법
 
 ```cmd
-python -m pytest                     & rem 전체 (368건, 네트워크 불필요 — 녹화 Fixture 사용)
+python -m pytest                     & rem 전체 (371건, 네트워크 불필요 — 녹화 Fixture 사용)
 python -m pytest tests\security      & rem 보안 테스트만
 bandit -r app scripts                & rem 정적 분석
 pip-audit -r requirements.txt        & rem 의존성 취약점 (인터넷 필요)
