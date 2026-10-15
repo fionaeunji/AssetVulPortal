@@ -44,6 +44,7 @@ def test_verify_rejects_malformed_or_traversal_entries(tmp_path, line):
         vp.verify(tmp_path)
 
 
+@pytest.mark.skipif(not (bp.ROOT / ".git").exists(), reason="Git 저장소에서만 (VDI 반입본에는 .git 없음)")
 def test_build_contains_committed_source_only_and_verifies(tmp_path):
     zip_path, digest = bp.build(tmp_path / "dist", "3.12", "win_amd64",
                                 with_wheels=False, allow_dirty=True)

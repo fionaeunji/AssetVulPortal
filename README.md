@@ -9,6 +9,7 @@
 | [`docs/external_communications.md`](docs/external_communications.md) | 외부 통신 목록 (방화벽 신청용) |
 | [`docs/security_review.md`](docs/security_review.md) | Secure Coding 검토 결과, Checklist, 필수 테스트 대응표 |
 | [`docs/vdi_migration.md`](docs/vdi_migration.md) | 인터넷 차단 VDI 이전 가이드 |
+| [`docs/vdi_source_transfer.md`](docs/vdi_source_transfer.md) | VDI 소스 반입·설치·업데이트 (패키지 생성/검증 도구) |
 | [`docs/completion_checklist.md`](docs/completion_checklist.md) | 1차 PoC 완료 조건 18개 점검표 |
 
 ---
@@ -229,7 +230,7 @@ Match Confidence(Level 2) = 규칙 합산: Vendor 일치 30 / 별칭 20, Product
 ## 12. 테스트 실행방법
 
 ```cmd
-python -m pytest                     & rem 전체 (371건, 네트워크 불필요 — 녹화 Fixture 사용)
+python -m pytest                     & rem 전체 (379건, 네트워크 불필요 — 녹화 Fixture 사용)
 python -m pytest tests\security      & rem 보안 테스트만
 bandit -r app scripts                & rem 정적 분석
 pip-audit -r requirements.txt        & rem 의존성 취약점 (인터넷 필요)

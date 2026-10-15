@@ -19,7 +19,8 @@ import hashlib
 import io
 import re
 import shutil
-import subprocess  # nosec B404 - 고정 인자(git/pip)만 실행, shell 미사용
+# 고정 인자 목록(git/pip)만 실행하며 shell 을 사용하지 않음
+import subprocess  # nosec B404
 import sys
 import tarfile
 import zipfile
@@ -38,7 +39,7 @@ class BuildError(RuntimeError):
 
 
 def _run(args: list[str], cwd: Path) -> bytes:
-    r = subprocess.run(args, cwd=cwd, capture_output=True, check=False)  # nosec B603 - 고정 인자 목록
+    r = subprocess.run(args, cwd=cwd, capture_output=True, check=False)  # nosec B603
     if r.returncode != 0:
         raise BuildError(f"{args[0]} 실패: {r.stderr.decode(errors='replace').strip()[:500]}")
     return r.stdout
