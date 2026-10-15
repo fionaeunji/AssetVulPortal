@@ -25,3 +25,5 @@ Thumbs.db
 
 # VDI 반입 패키지 출력
 dist/
+# 오프라인 설치용 wheel (수동 pip download)
+wheels/

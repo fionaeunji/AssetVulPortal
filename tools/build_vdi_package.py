@@ -45,10 +45,11 @@ def _run(args: list[str], cwd: Path) -> bytes:
     return r.stdout
 
 
-def git_head(repo: Path) -> tuple[str, bool]:
+def git_head(repo: Path) -> tuple[str, list[str]]:
+    """(HEAD 커밋, 커밋 안 된 변경 파일 목록). Git 미등록(untracked) 파일은 패키지에 들어가지 않으므로 제외."""
     sha = _run(["git", "rev-parse", "HEAD"], repo).decode().strip()
-    dirty = bool(_run(["git", "status", "--porcelain"], repo).strip())
-    return sha, dirty
+    out = _run(["git", "status", "--porcelain", "--untracked-files=no"], repo).decode(errors="replace")
+    return sha, [line[3:] for line in out.splitlines() if line.strip()]
 
 
 def export_git_tree(repo: Path, dest: Path) -> int:
@@ -109,10 +110,12 @@ def build(out_dir: Path, python_version: str, platform: str, *, repo: Path = ROO
         raise BuildError(f"--python-version 형식 오류: {python_version!r} (예: 3.12)")
     if not PLATFORM_RE.fullmatch(platform):
         raise BuildError(f"--platform 형식 오류: {platform!r}")
-    sha, dirty = git_head(repo)
+    sha, changed = git_head(repo)
+    dirty = bool(changed)
     if dirty and not allow_dirty:
-        raise BuildError("커밋되지 않은 변경이 있습니다. 커밋(또는 정리) 후 다시 실행하세요 — "
-                         "반입본과 Git 커밋을 1:1로 맞추기 위함")
+        shown = "\n  ".join(changed[:20]) + ("\n  ..." if len(changed) > 20 else "")
+        raise BuildError("커밋되지 않은 변경이 있습니다 (반입본과 Git 커밋을 1:1로 맞추기 위함):\n  "
+                         f"{shown}\n→ 의도한 수정이면 커밋, 아니면 `git restore <파일>` 로 되돌린 후 다시 실행하세요.")
     now = datetime.now(timezone.utc)
     name = f"AssetVulPortal-{now:%Y%m%d}-{sha[:7]}"
     stage = out_dir / name
