@@ -28,6 +28,8 @@ flowchart LR
 
 ## 2. 설치 파일 반입 (오프라인 설치)
 
+> 소스 반입·설치·업데이트 표준 절차는 **`docs/vdi_source_transfer.md`** (패키지 도구 `tools\build_vdi_package.py`, 검증 `tools\verify_package.py`)를 따르세요. 아래는 수동 절차입니다.
+
 인터넷 PC(내부 VDI와 **같은 Windows·Python 버전**)에서:
 
 ```cmd

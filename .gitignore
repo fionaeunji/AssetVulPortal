@@ -22,3 +22,6 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# VDI 반입 패키지 출력
+dist/
